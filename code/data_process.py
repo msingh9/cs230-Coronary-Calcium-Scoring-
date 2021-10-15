@@ -11,6 +11,8 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 import csv
 from statistics import mean, median, mode, variance
 import sys
+import xml.etree.ElementTree as et
+import plistlib
 
 
 # set the random seed to create the same train/val/test split
@@ -41,12 +43,16 @@ sdirs = {"G" : "Gated_release_final",
     # n -> to go to next slice
 
 doPlot = False
-plot3D = True
+plot3D = False
 images = []
-pid = 0
+pid = 1 # specify the patient id
+sdir_id = "N" ;# G for gated, N for non-gated
 
 if doPlot:
-    pdir = '%s/%s/patient/%s/' %(ddir, sdirs["G"], pid)
+    if sdir_id == "G":
+        pdir = '%s/%s/patient/%s/' %(ddir, sdirs[sdir_id], pid)
+    else:
+        pdir = '%s/%s/%s/' % (ddir, sdirs[sdir_id], pid)
     for subdir, dirs, files in os.walk(pdir):
         for filename in files:
             filepath = subdir + os.sep + filename
@@ -143,7 +149,8 @@ for subdir, dirs, files in os.walk(sdir):
 def process_xml(f):
     # input XML file
     # output - directory containing various meta data
-    pass
+    with open(f, 'rb') as fin:
+        pl = plistlib.load(fin)
 
 sdir = f"{ddir}/{sdirs[k]}/calcium_xml"
 myprint(f"Processing {sdir} folder", 1)
