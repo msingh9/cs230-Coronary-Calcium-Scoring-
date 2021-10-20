@@ -45,7 +45,7 @@ sdirs = {"G" : "Gated_release_final",
 doPlot = True
 plot3D = True
 images = []
-pid = 4 # specify the patient id
+pid = 81 # specify the patient id
 sdir_id = "G" ;# G for gated, N for non-gated
 
 
@@ -104,17 +104,13 @@ def add_patches(ax, mdata):
     if plot_cid in mdata:
         for roi in mdata[plot_cid]:
             ax[1].add_patch(patches.Polygon(roi['pixels'], closed=True, color=pixel_colors[roi['cid']]))
-            #for x, y in roi['pixels']:
-                #ax[1].add_patch(patches.Circle((x, y), radius=0.5, color=pixel_colors[roi['cid']]))
-
 if doPlot:
     if sdir_id == "G":
         pdir = '%s/%s/patient/%s/' %(ddir, sdirs[sdir_id], pid)
     else:
         pdir = '%s/%s/%s/' % (ddir, sdirs[sdir_id], pid)
     for subdir, dirs, files in os.walk(pdir):
-        for filename in sorted(files):
-            print (filename)
+        for filename in sorted(files, reverse=True):
             filepath = subdir + os.sep + filename
             if filepath.endswith(".dcm"):
                 ds = dcmread(filepath)
@@ -214,10 +210,15 @@ k = "G"
 data[k] = {}
 sdir = f"{ddir}/{sdirs[k]}/patient"
 myprint(f"Processing {sdir} folder", 1)
+
+# estimate total work
+total_work = 0
 for subdir, dirs, files in os.walk(sdir):
-    total_work = len(files)
-    progress_count = 0
-    for filename in files:
+    total_work += len(files)
+
+progress_count = 0
+for subdir, dirs, files in os.walk(sdir):
+    for filename in sorted(files, reverse=True):
         tick()
         filepath = str.replace(subdir, "\\", "/") + "/" + filename
         myprint(f"Processing {filepath}", 4)
@@ -230,8 +231,16 @@ for subdir, dirs, files in os.walk(sdir):
 
 sdir = f"{ddir}/{sdirs[k]}/calcium_xml"
 myprint(f"Processing {sdir} folder", 1)
+
+# estimate total work
+total_work = 0
+for subdir, dirs, files in os.walk(sdir):
+    total_work += len(files)
+
+progress_count = 0
 for subdir, dirs, files in os.walk(sdir):
     for filename in files:
+        tick()
         filepath = str.replace(subdir, "\\", "/") + "/" + filename
         myprint(f"Processing {filepath}", 4)
         if filepath.endswith(".xml"):
@@ -246,10 +255,15 @@ k = "N"
 data[k] = {}
 sdir = f"{ddir}/{sdirs[k]}"
 myprint(f"Processing {sdir}/{sdir} folder", 1)
+
+# estimate total work
+total_work = 0
 for subdir, dirs, files in os.walk(sdir):
-    total_work = len(files)
-    progress_count = 0
-    for filename in files:
+    total_work += len(files)
+
+progress_count = 0
+for subdir, dirs, files in os.walk(sdir):
+     for filename in sorted(files, reverse=True):
         tick()
         filepath = str.replace(subdir, "\\", "/") + "/" + filename
         myprint(f"Processing {filepath}", 4)
@@ -298,14 +312,16 @@ for k in ("N", "G"):
         info[k]['num_of_patients'] += 1
         info[k]['num_of_slices'] += len(data[k][pid]['images'])
         if k == "N":
-            if (pid in data[k] and 'mdata' in data[k][pid] and data[k][pid]['mdata'][-1]):
+            if (pid in data[k] and 'mdata' in data[k][pid] and data[k][pid]['mdata'][-1] > 0):
                 info[k]['num_of_pos_patients'] += 1
                 info[k]['num_of_pos_slices'] += 1
                 ng_scores.append(data[k][pid]['mdata'][-1])
         else:
             if (pid in data[k] and 'mdata' in data[k][pid]):
-                info[k]['num_of_pos_patients'] += 1
-                info[k]['num_of_pos_slices'] += 1 #FIXME: we need to process xml data
+                if len(data[k][pid].keys() > 0):
+                    info[k]['num_of_pos_patients'] += 1
+                for key in data[k][pid].keys():
+                    info[k]['num_of_pos_slices'] += 1
 
 
 # print stats
