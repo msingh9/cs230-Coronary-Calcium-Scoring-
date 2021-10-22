@@ -3,7 +3,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - _tflow_select=2.1.0
   - abseil-cpp=20210324.2
   - absl-py=0.13.0
   - aiohttp=3.7.4.post0
@@ -24,8 +23,6 @@ dependencies:
   - click=8.0.1
   - coverage=5.5
   - cryptography=3.4.8
-  - cudatoolkit=11.3.1
-  - cudnn=8.2.1
   - cython=0.29.24
   - dataclasses=0.8
   - flatbuffers=2.0.0
@@ -37,7 +34,6 @@ dependencies:
   - grpcio=1.36.1
   - h5py=3.2.1
   - hdf5=1.10.6
-  - icc_rt=2019.0.0
   - icu=68.1
   - idna=3.2
   - importlib-metadata=4.8.1
@@ -67,7 +63,6 @@ dependencies:
   - pydicom=2.2.2
   - pyjwt=2.1.0
   - pyopenssl=20.0.1
-  - pyreadline=2.1
   - pysocks=1.7.1
   - python=3.8.12
   - python-flatbuffers=1.12
@@ -82,20 +77,13 @@ dependencies:
   - sqlite=3.36.0
   - tensorboard=2.5.0
   - tensorboard-plugin-wit=1.6.0
-  - tensorflow=2.5.0
-  - tensorflow-base=2.5.0
   - tensorflow-estimator=2.5.0
-  - tensorflow-gpu=2.5.0
   - termcolor=1.1.0
   - typing-extensions=3.10.0.2
   - typing_extensions=3.10.0.2
   - urllib3=1.26.7
-  - vc=14.2
-  - vs2015_runtime=14.27.29016
   - werkzeug=2.0.1
   - wheel=0.35.1
-  - win_inet_pton=1.1.0
-  - wincertstore=0.2
   - wrapt=1.12.1
   - yarl=1.6.3
   - zipp=3.6.0
