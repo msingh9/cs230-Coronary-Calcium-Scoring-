@@ -14,21 +14,36 @@ import sys
 import xml.etree.ElementTree as et
 import plistlib
 import matplotlib.patches as patches
+import bz2
+from process_xml import process_xml
+
+# User options
+doPlot = False
+plot3D = True
+pid = 81 # specify the patient id
+sdir_id = "G" ;# G for gated, N for non-gated
+generate_gated_train_dev_test_set = True
+train_set_size = 0.8
+dev_set_size = 0.1
+test_set_size = 0.1
+
+# data path directory
+ddir = "../dataset/cocacoronarycalciumandchestcts-2"
+#ddir = "D:/cs230/accs/mini_dataset"
+sdirs = {"G" : "Gated_release_final",
+           "N" : "deidentified_nongated"}
+
+# output data directory where pickle objects will be dumped.
+odir = "../dataset"
 
 # set the random seed to create the same train/val/test split
 np.random.seed(10015321)
 debug = 2
 
-# for debug messages
-def myprint(msg, level):
-    if level <= debug:
-        print (msg)
-
-# data path directory
-ddir = "D:/cs230/accs/dataset/cocacoronarycalciumandchestcts-2"
-#ddir = "D:/cs230/accs/mini_dataset"
-sdirs = {"G" : "Gated_release_final",
-           "N" : "deidentified_nongated"}
+# myprint function
+def myprint(x, level):
+    if (level < debug):
+        print (x)
 
 # directory structure
 # G/calcium_xml/<id>
@@ -42,60 +57,7 @@ sdirs = {"G" : "Gated_release_final",
     # p -> to go to previous slice
     # n -> to go to next slice
 
-doPlot = True
-plot3D = True
 images = []
-pid = 81 # specify the patient id
-sdir_id = "G" ;# G for gated, N for non-gated
-
-
-# cornary name to id
-cornary_name_2_id = {"Right Coronary Artery": 0,
-                     "Left Anterior Descending Artery": 1,
-                     "Left Coronary Artery": 2,
-                     "Left Circumflex Artery":3}
-
-# pixel colors
-pixel_colors = {0: 'red',
-                1: 'blue',
-                2: 'green',
-                3: 'yellow'}
-
-# get pixel coordinates
-def get_pix_coords(pxy):
-    x, y = eval(pxy)
-    x = int(x+0.99)
-    y = int(y+0.99)
-    assert x > 0 and x < 512, f"Invalid {x} value for pixel coordinate"
-    assert y > 0 and y < 512, f"Invalid {y} value for pixel coordinate"
-    return (x, y)
-
-# process calcium_xml
-# return data is:
-#  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
-def process_xml(f):
-    # input XML file
-    # output - directory containing various meta data
-    with open(f, 'rb') as fin:
-        pl = plistlib.load(fin)
-    # extract needed info from XML
-    data = {}
-    for image in pl["Images"]:
-        iidx = image["ImageIndex"]
-        num_rois = image["NumberOfROIs"]
-        assert num_rois == len(image["ROIs"]), f"{num_rois} ROIs but not all specified in {f}"
-        for roi in image["ROIs"]:
-            if (len(roi['Point_px']) > 0):
-                if iidx not in data:
-                    data[iidx] = []
-                data[iidx].append({"cid" : cornary_name_2_id[roi['Name']]})
-                assert len(roi['Point_px']) == roi['NumberOfPoints'], f"Number of ROI points does not match with given length for {f}"
-                data[iidx][-1]['pixels'] = [get_pix_coords(pxy) for pxy in roi['Point_px']]
-            else:
-                print (f"Warning: ROI without pixels specified for {iidx} in {f}")
-
-    return data
-
 
 # function to add patches from mdata on given matplot Axes
 plot_cid = 0 ;# global variable to remember image index that is currently plotted
@@ -318,7 +280,7 @@ for k in ("N", "G"):
                 ng_scores.append(data[k][pid]['mdata'][-1])
         else:
             if (pid in data[k] and 'mdata' in data[k][pid]):
-                if len(data[k][pid].keys() > 0):
+                if len(data[k][pid].keys()) > 0:
                     info[k]['num_of_pos_patients'] += 1
                 for key in data[k][pid].keys():
                     info[k]['num_of_pos_slices'] += 1
@@ -331,3 +293,48 @@ for k in ("N", "G"):
 print ("Nogated scores distribution")
 print ("Min = %.2f, Max = %.2f, Mean = %.2f" %(min(ng_scores), max(ng_scores), mean(ng_scores)))
 print ("Median = %.2f, Variance = %.2f" %(median(ng_scores), variance(ng_scores)))
+
+# train/test/dev split
+all_pids = []
+for pid in data['G'].keys():
+    all_pids.append(pid)
+
+if generate_gated_train_dev_test_set:
+    # reshuffle
+    print (f"Splitting gated data set into train/dev/test as {train_set_size}/{dev_set_size}/{test_set_size}")
+    random.shuffle(all_pids)
+    total_pids = len(all_pids)
+    tidx = int(total_pids*train_set_size)
+    didx = int(total_pids*(train_set_size + dev_set_size))
+    train_pids = all_pids[0:tidx]
+    dev_pids = all_pids[tidx:didx]
+    test_pids = all_pids[didx:]
+
+    # dump into train/dev file
+    fname = odir + "/gated_train_dev_pids.dump"
+    with open(fname, 'wb') as fout:
+        print (f"Saving train/dev into {fname}")
+        pickle.dump((train_pids, dev_pids), fout, protocol=4)
+
+    fname = odir + "/gated_test_pids.dump"
+    with open(fname, 'wb') as fout:
+        print(f"Saving train/dev into {fname}")
+        pickle.dump(test_pids, fout, protocol=4)
+
+    # print stats
+    for pids, name in zip((train_pids, dev_pids, test_pids), ("train", "dev", "test")):
+        num_positive_samples = 0
+        num_positive_slices = 0
+        num_total_slices = 0
+        for pid in pids:
+            num_total_slices += len(data["G"][pid]['images'])
+            if ('mdata' in data["G"][pid]):
+                if len(data["G"][pid].keys()) > 0:
+                    num_positive_samples += 1
+                for key in data["G"][pid].keys():
+                    num_positive_slices += 1
+        print(f"{name} statistics: ")
+        print(f"  Number of patients = {len(pids)}")
+        print(f"  Positive samples = {num_positive_samples}")
+        print(f"  Total slices = {num_total_slices}")
+        print(f"  Total positive slices = {num_positive_slices}")

@@ -1,0 +1,90 @@
+from pydicom import dcmread
+from process_xml import process_xml
+import tensorflow as tf
+import math
+import os
+import numpy as np
+from matplotlib.path import Path
+from tensorflow.keras.utils import to_categorical
+import sys
+
+class dataGenerator(tf.keras.utils.Sequence):
+    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final"):
+        self.pids = pids
+        self.ddir = ddir
+        # Load all the images across pids
+        self.X = []
+        self.mdata = []
+
+        # Estimate total work
+        total_work = 0
+        progress_count = 0
+        for pid in self.pids:
+            for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
+                total_work += len(files)
+
+        print ("Loading dataset")
+        for pid in self.pids:
+            for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
+                for iidx, filename in enumerate(sorted(files, reverse=True)):
+                    progress_count += 1
+                    if (progress_count % 64 == 0):
+                        p = int(progress_count * 100 / total_work)
+                        sys.stdout.write(f"\r{p}%")
+                        sys.stdout.flush()
+                    filepath = subdir + os.sep + filename
+                    if filepath.endswith(".dcm"):
+                        self.X.append(dcmread(filepath).pixel_array)
+                        self.mdata.append((pid, iidx)) ;# iidx is image index
+        self.batch_size = batch_size
+        sys.stdout.write("\n")
+
+        # Normalize Xs
+        print (len(self.X))
+        print (f"Image pixel data type before normalization is {self.X[0][0,0].dtype} {self.X[0][0,0]}")
+        norm_const = np.array(2**16-1).astype('float32')
+        print("Normalizing inputs, it takes a little while")
+        self.X = self.X / norm_const
+        print(f"Image pixel data type after normalization {self.X[0][0,0].dtype} {self.X[0][0,0]}")
+
+
+    def __len__(self):
+        return math.ceil(len(self.X) / self.batch_size)
+
+    def __getitem__(self, idx):
+        if ((idx +1 ) * self.batch_size) > len(self.X):
+            Xs = self.X[idx * self.batch_size:len(self.X)]
+            mdatas = self.mdata[idx * self.batch_size:len(self.X)]
+        else:
+            Xs = self.X[idx * self.batch_size:(idx + 1) * self.batch_size]
+            mdatas = self.mdata[idx * self.batch_size:(idx + 1) * self.batch_size]
+
+        height, width = Xs[0].shape
+        m = len(Xs)
+        Ys = np.zeros((m, height, width, 5))
+
+        # load XML and prepare Ys
+        cache = {}
+        for index, (pid, iidx) in enumerate(mdatas):
+            fname = self.ddir + "/calcium_xml/" + str(pid) + (".xml")
+            if not os.path.exists(fname):
+                continue
+            if fname not in cache:
+                mdata = process_xml(self.ddir + "/calcium_xml/" + str(pid) + (".xml"))
+                cache[fname] = mdata
+            else:
+                mdata = cache[fname]
+            # mdata format is:
+            #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
+            if iidx not in mdata:
+                continue
+            for _ in mdata[iidx]:
+                poly_path = Path(_['pixels'])
+                x, y = np.mgrid[:height, : width]
+                coors = np.hstack((x.reshape(-1,1), y.reshape(-1,1)))
+                mask = poly_path.contains_points(coors).reshape(height, width)
+                Ys[index, :, :, 0] += mask
+                Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
+
+        Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
+        return np.array(Xs).reshape(m, height, width, 1), Ys
