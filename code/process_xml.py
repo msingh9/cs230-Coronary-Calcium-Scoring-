@@ -19,12 +19,6 @@ def process_xml(f):
                          "Left Coronary Artery": 2,
                          "Left Circumflex Artery": 3}
 
-    # pixel colors
-    pixel_colors = {0: 'red',
-                    1: 'blue',
-                    2: 'green',
-                    3: 'yellow'}
-
     # input XML file
     # output - directory containing various meta data
     with open(f, 'rb') as fin:

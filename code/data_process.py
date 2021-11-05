@@ -20,7 +20,7 @@ from process_xml import process_xml
 # User options
 doPlot = False
 plot3D = True
-pid = 81 # specify the patient id
+pid = 159 # specify the patient id
 sdir_id = "G" ;# G for gated, N for non-gated
 generate_gated_train_dev_test_set = True
 train_set_size = 0.8
@@ -58,6 +58,12 @@ def myprint(x, level):
     # n -> to go to next slice
 
 images = []
+
+# pixel colors
+pixel_colors = {0: 'red',
+                1: 'blue',
+                2: 'green',
+                3: 'yellow'}
 
 # function to add patches from mdata on given matplot Axes
 plot_cid = 0 ;# global variable to remember image index that is currently plotted
@@ -297,6 +303,8 @@ print ("Median = %.2f, Variance = %.2f" %(median(ng_scores), variance(ng_scores)
 # train/test/dev split
 all_pids = []
 for pid in data['G'].keys():
+    if pid == "159" or pid == "238" or pid == "398" or pid == "415" or pid == "421":
+        continue
     all_pids.append(pid)
 
 if generate_gated_train_dev_test_set:

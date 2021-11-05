@@ -28,7 +28,7 @@ learning_rates = [0.00001]
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [8]
+batch_sizes = [16]
 epochs = 20
 plot = True
 train = True
@@ -41,6 +41,7 @@ params['print_summary'] = True
 params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
+params['upsample_ps'] = 20 ; # set non-zero integer to up-sample positive samples
 
 # data set directory
 ddir = "../dataset"

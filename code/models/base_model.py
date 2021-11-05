@@ -49,13 +49,11 @@ class BaseModel:
         print (self.name)
         if not self.params['resetHistory'] and os.path.isfile(self.name + '.h5'):
             print("Loading model from " + self.name + '.h5')
-            if self.params['poisson']:
-                self.model = load_model(self.name + '.h5', custom_objects={'exp': tf.math.exp})
-            else:
-                self.model = load_model(self.name + '.h5')
+            self.model = load_model(self.name + '.h5', custom_objects={'loss' : self.loss})
             if self.history:
                 with open(self.name + '.aux_data', 'rb') as fin:
                     self.history.train_losses, self.history.val_losses, self.history.train_acc, self.history.val_acc = pickle.load(fin)
+                print (self.history.train_losses)
 
         # Check if model is defined
         if not self.model:
@@ -73,14 +71,15 @@ class BaseModel:
         with open(self.sfname + '.aux_data', 'wb') as fout:
             pickle.dump((self.history.train_losses, self.history.val_losses, self.history.train_acc, self.history.val_acc), fout)
         if not name:
-            plot_model(self.model, to_file=self.name + '.png')
+            pass
+            #plot_model(self.model, to_file=self.name + '.png')
 
     # Loss function
     def loss(self, targets, inputs, smooth=1e-6):
 
         # flatten label and prediction tensors
-        inputs_s = K.flatten(inputs[:,:,:,0])
-        targets_s = K.flatten(targets[:,:,:,0])
+        inputs_s = K.flatten(inputs[:, :, :, 0])
+        targets_s = K.flatten(targets[:, :, :, 0])
 
         intersection = K.sum(targets_s * inputs_s)
         dice = (2 * intersection + smooth) / (K.sum(targets_s) + K.sum(inputs_s) + smooth)
@@ -88,7 +87,12 @@ class BaseModel:
 
         cce = tf.keras.losses.CategoricalCrossentropy()
         # Include CE loss when target is 1.
-        cross_entropy_loss = cce(targets[:,:,:,1:] * targets[:,:,:,0:1], inputs[:,:,:,1:] * targets[:,:,:,0:1])
+        y_true = targets[:, :, :, 1:]
+        y_pred = inputs[:, :, :, 1:]
+        mask = targets[:, :, :, 0]
+        y_true_masked = tf.boolean_mask(y_true, mask)
+        y_pred_masked = tf.boolean_mask(y_pred, mask)
+        cross_entropy_loss = cce(y_true_masked, y_pred_masked)
         return dice_loss + cross_entropy_loss
 
     def compile(self, optimizer):
@@ -96,8 +100,8 @@ class BaseModel:
 
     def train(self, batch_size, epochs, lr_scheduler):
         # default
-        self.model.fit(dataGenerator(self.train_pids, batch_size), batch_size=batch_size, epochs=epochs,
-                       validation_data=(self.dev_pids),
+        self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps']), batch_size=batch_size, epochs=epochs,
+                       validation_data=dataGenerator(self.dev_pids, batch_size),
                        callbacks = [self.history,
                                         tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
                                         tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=self.patience)])
@@ -108,27 +112,27 @@ class BaseModel:
         if not fig:
             fig, ax = plt.subplots(nrows=1, ncols=2)
 
-            ax[0].plot(self.history.train_losses[self.history.acc_epochs:], label=label + ' train', color='red')
-            ax[0].plot(self.history.val_losses[self.history.acc_epochs:], label=label +' val', color='blue')
-            ax[0].set_ylabel('Loss')
-            ax[0].set_xlabel('epocs')
-            ax[0].set_title("Loss vs epocs, train(Red)")
+        ax[0].plot(self.history.train_losses[self.history.acc_epochs:], label=label + ' train', color='red')
+        ax[0].plot(self.history.val_losses[self.history.acc_epochs:], label=label +' val', color='blue')
+        ax[0].set_ylabel('Loss')
+        ax[0].set_xlabel('epocs')
+        ax[0].set_title("Loss vs epocs, train(Red)")
 
-            ax[1].plot(self.history.train_acc[self.history.acc_epochs:], label=label + ' train', color='red')
-            ax[1].plot(self.history.val_acc[self.history.acc_epochs:], label=label + ' val', color='blue')
-            ax[1].set_ylabel('Accuracy')
-            ax[1].set_xlabel('epocs')
-            ax[1].set_title("Accuracy vs epocs, train(Red)")
+        ax[1].plot(self.history.train_acc[self.history.acc_epochs:], label=label + ' train', color='red')
+        ax[1].plot(self.history.val_acc[self.history.acc_epochs:], label=label + ' val', color='blue')
+        ax[1].set_ylabel('Accuracy')
+        ax[1].set_xlabel('epocs')
+        ax[1].set_title("Accuracy vs epocs, train(Red)")
 
-            print('train_loss: ' + str(self.history.train_losses[-5:-1]))
-            print('val_loss: ' + str(self.history.val_losses[-5:-1]))
-            print('train_acc: ' + str(self.history.train_acc[-5:-1]))
-            print('val_acc: ' + str(self.history.val_acc[-5:-1]))
-            print('epochs:   ' + str(len(self.history.train_losses)))
+        print('train_loss: ' + str(self.history.train_losses[-5:-1]))
+        print('val_loss: ' + str(self.history.val_losses[-5:-1]))
+        print('train_acc: ' + str(self.history.train_acc[-5:-1]))
+        print('val_acc: ' + str(self.history.val_acc[-5:-1]))
+        print('epochs:   ' + str(len(self.history.train_losses)))
 
-        plot_file_name = self.name + "_plot.png"
-        print (f"Saving plot in {plot_file_name}")
-        plt.savefig(plot_file_name)
+        #plot_file_name = self.name + "_plot.png"
+        #print (f"Saving plot in {plot_file_name}")
+        #plt.savefig(plot_file_name)
 
         if show_plot:
             plt.show()

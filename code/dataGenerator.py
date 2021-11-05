@@ -7,14 +7,17 @@ import numpy as np
 from matplotlib.path import Path
 from tensorflow.keras.utils import to_categorical
 import sys
+import random
 
 class dataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final"):
+    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final", upsample_ps=0):
         self.pids = pids
         self.ddir = ddir
         # Load all the images across pids
         self.X = []
         self.mdata = []
+        self.upsample_ps = upsample_ps
+        self.cache = {}
 
         # Estimate total work
         total_work = 0
@@ -40,13 +43,46 @@ class dataGenerator(tf.keras.utils.Sequence):
         sys.stdout.write("\n")
 
         # Normalize Xs
-        print (len(self.X))
-        print (f"Image pixel data type before normalization is {self.X[0][0,0].dtype} {self.X[0][0,0]}")
-        norm_const = np.array(2**16-1).astype('float32')
+        print(len(self.X))
+        print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
+        norm_const = np.array(2 ** 16 - 1).astype('float32')
         print("Normalizing inputs, it takes a little while")
         self.X = self.X / norm_const
-        print(f"Image pixel data type after normalization {self.X[0][0,0].dtype} {self.X[0][0,0]}")
+        print(f"Image pixel data type after normalization {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
 
+        # Up sample image
+        if self.upsample_ps:
+            print(f"Upsampling positive samples by {self.upsample_ps}")
+            new_X = []
+            new_mdata = []
+            for index, (pid, iidx) in enumerate(self.mdata):
+                fname = self.ddir + "/calcium_xml/" + str(pid) + (".xml")
+                new_X.append(self.X[index])
+                new_mdata.append((pid, iidx))
+                if not os.path.exists(fname):
+                    continue
+                if fname not in self.cache:
+                    mdata = process_xml(fname)
+                    self.cache[fname] = mdata
+                else:
+                    mdata = self.cache[fname]
+                # mdata format is:
+                #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
+                if iidx not in mdata:
+                    continue
+                for i in range(self.upsample_ps):
+                    new_X.append(self.X[index])
+                    new_mdata.append((pid, iidx))
+            self.X = new_X
+            self.mdata = new_mdata
+
+        # Reshuffle
+        indices = [i for i in range(len(self.X))]
+        random.shuffle(indices)
+        xxx = [self.X[i] for i in indices]
+        yyy = [self.mdata[i] for i in indices]
+        self.X = xxx
+        self.mdata = yyy
 
     def __len__(self):
         return math.ceil(len(self.X) / self.batch_size)
@@ -64,16 +100,15 @@ class dataGenerator(tf.keras.utils.Sequence):
         Ys = np.zeros((m, height, width, 5))
 
         # load XML and prepare Ys
-        cache = {}
         for index, (pid, iidx) in enumerate(mdatas):
             fname = self.ddir + "/calcium_xml/" + str(pid) + (".xml")
             if not os.path.exists(fname):
                 continue
-            if fname not in cache:
-                mdata = process_xml(self.ddir + "/calcium_xml/" + str(pid) + (".xml"))
-                cache[fname] = mdata
+            if fname not in self.cache:
+                mdata = process_xml(fname)
+                self.cache[fname] = mdata
             else:
-                mdata = cache[fname]
+                mdata = self.cache[fname]
             # mdata format is:
             #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
             if iidx not in mdata:
@@ -88,3 +123,12 @@ class dataGenerator(tf.keras.utils.Sequence):
 
         Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
         return np.array(Xs).reshape(m, height, width, 1), Ys
+
+    def on_epoch_end(self):
+        # Reshuffle
+        indices = [i for i in range(len(self.X))]
+        random.shuffle(indices)
+        xxx = [self.X[i] for i in indices]
+        yyy = [self.mdata[i] for i in indices]
+        self.X = xxx
+        self.mdata = yyy
