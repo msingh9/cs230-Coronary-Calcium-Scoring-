@@ -10,7 +10,7 @@ import sys
 import random
 
 class dataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final", upsample_ps=0):
+    def __init__(self, pids, batch_size, ddir, upsample_ps=0):
         self.pids = pids
         self.ddir = ddir
         # Load all the images across pids
@@ -43,7 +43,7 @@ class dataGenerator(tf.keras.utils.Sequence):
         sys.stdout.write("\n")
 
         # Normalize Xs
-        print(len(self.X))
+        print(f'Read {len(self.X)} examples before upsampling.')
         print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
         norm_const = np.array(2 ** 16 - 1).astype('float32')
         print("Normalizing inputs, it takes a little while")

@@ -100,11 +100,18 @@ class BaseModel:
 
     def train(self, batch_size, epochs, lr_scheduler):
         # default
-        self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps']), batch_size=batch_size, epochs=epochs,
-                       validation_data=dataGenerator(self.dev_pids, batch_size),
+        self.model.fit(x=dataGenerator(
+                          self.train_pids,
+                          batch_size,
+                          upsample_ps=self.params['upsample_ps'],
+                          ddir=self.params['coca_dir']),
+                       batch_size=batch_size,
+                       epochs=epochs,
+                       validation_data=dataGenerator(
+                         self.dev_pids, batch_size, ddir=self.params['coca_dir']),
                        callbacks = [self.history,
-                                        tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
-                                        tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=self.patience)])
+                                    tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
+                                    tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=self.patience)])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):
         if not label:
