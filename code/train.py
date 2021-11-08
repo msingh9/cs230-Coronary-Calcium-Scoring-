@@ -37,29 +37,31 @@ predict = False
 # Model parameters
 params = {}
 params['resetHistory'] = False
-params['print_summary'] = True
+params['print_summary'] = False
 params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
-params['upsample_ps'] = 20 ; # set non-zero integer to up-sample positive samples
+params['upsample_ps'] = 0 ; # set non-zero integer to up-sample positive samples
+params['coca_dir'] = '/content/drive/MyDrive/CS230 Project/Data sample/coca_sample/Gated_release_final'
+# ../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final
 
 # data set directory
 ddir = "../dataset"
 
 # Read train, dev and test set Ids
-fname = ddir + "/gated_train_dev_pids.dump"
+fname = ddir + "/sample_gated_train_dev_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading train/dev from {fname}")
     train_pids, dev_pids = pickle.load(fin)
 
-fname = ddir + "/gated_test_pids.dump"
+fname = ddir + "/sample_gated_test_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
 
-print (f"Total train samples {len(train_pids)}")
-print (f"Total dev samples {len(dev_pids)}")
-print (f"Total test samples {len(test_pids)}")
+print (f"Total train pids {len(train_pids)}")
+print (f"Total dev pids {len(dev_pids)}")
+print (f"Total test pids {len(test_pids)}")
 
 # LossHistory Class
 class LossHistory(tf.keras.callbacks.Callback):
