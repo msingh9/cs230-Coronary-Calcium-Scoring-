@@ -22,9 +22,11 @@ import gc
 import models.unet as unet
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size", default=16, type=int)
-parser.add_argument("--epochs", default=20, type=int)
-parser.add_argument("--max_train_patients", default=None, type=int)
+parser.add_argument("-batch_size", default=16, type=int)
+parser.add_argument("-epochs", default=20, type=int)
+parser.add_argument("-max_train_patients", default=None, type=int)
+parser.add_argument("-dice_loss_fraction", default=1.0, type=float)
+parser.add_argument("-upsample_ps", default=40, type=int)
 args = parser.parse_args()
 
 # User options
@@ -48,9 +50,9 @@ params['print_summary'] = False
 params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
-params['upsample_ps'] = 40 ; # set non-zero integer to up-sample positive samples
-params['limit_pids'] = None
-params['alpha'] = 1.0 ; # fraction of dice loss
+params['upsample_ps'] = args.upsample_ps ; # set non-zero integer to up-sample positive samples
+params['limit_pids'] = args.max_train_patients
+params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
 params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
 
 # data set directory
