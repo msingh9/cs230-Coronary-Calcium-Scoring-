@@ -10,13 +10,14 @@ import sys
 import random
 
 class dataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, pids, batch_size, ddir, upsample_ps=0):
+    def __init__(self, pids, batch_size, ddir, max_patients, upsample_ps=0):
         self.pids = pids
         self.ddir = ddir
         # Load all the images across pids
         self.X = []
         self.mdata = []
         self.upsample_ps = upsample_ps
+        self.max_patients = max_patients
         self.cache = {}
 
         # Estimate total work
@@ -27,7 +28,9 @@ class dataGenerator(tf.keras.utils.Sequence):
                 total_work += len(files)
 
         print ("Loading dataset")
-        for pid in self.pids:
+        for i, pid in enumerate(self.pids):
+          if self.max_patients and i >= self.max_patients:
+            break
             for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
                 for iidx, filename in enumerate(sorted(files, reverse=True)):
                     progress_count += 1

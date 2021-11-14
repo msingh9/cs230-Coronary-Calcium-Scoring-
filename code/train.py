@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
@@ -20,6 +21,12 @@ import gc
 # import models
 import models.unet as unet
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--batch_size", default=16, type=int)
+parser.add_argument("--epochs", default=20, type=int)
+parser.add_argument("--max_train_patients", default=None, type=int)
+args = parser.parse_args()
+
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 model_name = 'unet'
@@ -28,8 +35,8 @@ learning_rates = [0.00001]
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [16]
-epochs = 20
+batch_sizes = [args.batch_size]
+epochs = args.epochs
 plot = True
 train = True
 predict = False
@@ -42,8 +49,9 @@ params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
 params['upsample_ps'] = 0 ; # set non-zero integer to up-sample positive samples
-params['coca_dir'] = '/content/drive/MyDrive/CS230 Project/Data sample/coca_sample/Gated_release_final'
+params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
 # ../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final
+params['max_train_patients'] = args.max_train_patients
 
 # data set directory
 ddir = "../dataset"

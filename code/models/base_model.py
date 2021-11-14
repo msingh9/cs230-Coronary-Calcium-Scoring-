@@ -104,11 +104,15 @@ class BaseModel:
                           self.train_pids,
                           batch_size,
                           upsample_ps=self.params['upsample_ps'],
-                          ddir=self.params['coca_dir']),
+                          ddir=self.params['coca_dir'],
+                          max_patients=self.params['max_train_patients']),
                        batch_size=batch_size,
                        epochs=epochs,
                        validation_data=dataGenerator(
-                         self.dev_pids, batch_size, ddir=self.params['coca_dir']),
+                         self.dev_pids,
+                         batch_size,
+                         ddir=self.params['coca_dir'],
+                         max_patients=None),
                        callbacks = [self.history,
                                     tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
                                     tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=self.patience)])
