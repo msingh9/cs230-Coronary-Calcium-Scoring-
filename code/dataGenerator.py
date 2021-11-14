@@ -29,9 +29,11 @@ class dataGenerator(tf.keras.utils.Sequence):
 
         print ("Loading dataset")
         for i, pid in enumerate(self.pids):
-          if self.max_patients and i >= self.max_patients:
-            break
+            if self.max_patients and i > self.max_patients:
+                print(f"Stopping reads at max patients {i}")
+                break
             for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
+                print(f"In subdir {subdir} with index {i}")
                 for iidx, filename in enumerate(sorted(files, reverse=True)):
                     progress_count += 1
                     if (progress_count % 64 == 0):
