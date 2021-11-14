@@ -20,7 +20,9 @@ from process_xml import process_xml
 # User options
 doPlot = False
 plot3D = True
-pid = 159 # specify the patient id
+pid = random.choice([i for i in range(100)]) # specify the patient id
+pid = 100
+print (pid)
 sdir_id = "G" ;# G for gated, N for non-gated
 generate_gated_train_dev_test_set = True
 train_set_size = 0.8
@@ -29,7 +31,6 @@ test_set_size = 0.1
 
 # data path directory
 ddir = "../dataset/cocacoronarycalciumandchestcts-2"
-#ddir = "D:/cs230/accs/mini_dataset"
 sdirs = {"G" : "Gated_release_final",
            "N" : "deidentified_nongated"}
 
@@ -186,9 +187,15 @@ for subdir, dirs, files in os.walk(sdir):
 
 progress_count = 0
 for subdir, dirs, files in os.walk(sdir):
+    images_indices = []
     for filename in sorted(files, reverse=True):
         tick()
         filepath = str.replace(subdir, "\\", "/") + "/" + filename
+        image_index = filename.split(".")[0].split("-")[-1]
+        if image_index in images_indices:
+            print (f" duplicate images in {filepath}")
+            break
+        images_indices.append(image_index)
         myprint(f"Processing {filepath}", 4)
         if filepath.endswith(".dcm"):
             pid = filepath.split("/")[-3]

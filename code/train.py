@@ -22,17 +22,17 @@ import models.unet as unet
 
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+#os.environ["TF_GPU_ALLOCATOR"]='cuda_malloc_async'
 model_name = 'unet'
 use_adam = True
-learning_rates = [0.00001]
+learning_rates = [0.0001]
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [16]
-epochs = 20
+batch_sizes = [8]
+epochs = 5
 plot = True
 train = True
-predict = False
 
 # Model parameters
 params = {}
@@ -41,7 +41,9 @@ params['print_summary'] = True
 params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
-params['upsample_ps'] = 20 ; # set non-zero integer to up-sample positive samples
+params['upsample_ps'] = 40 ; # set non-zero integer to up-sample positive samples
+params['limit_pids'] = None
+params['alpha'] = 1.0 ; # fraction of dice loss
 
 # data set directory
 ddir = "../dataset"
@@ -57,6 +59,10 @@ with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
 
+
+print (train_pids)
+print (dev_pids)
+
 print (f"Total train samples {len(train_pids)}")
 print (f"Total dev samples {len(dev_pids)}")
 print (f"Total test samples {len(test_pids)}")
@@ -66,16 +72,21 @@ class LossHistory(tf.keras.callbacks.Callback):
     def __init__(self):
         self.train_losses = []
         self.val_losses = []
-        self.train_acc = []
-        self.val_acc = []
+        self.train_seg_f1 = []
+        self.val_seg_f1 = []
+        self.train_class_acc = []
+        self.val_class_acc = []
         self.acc_epochs = 0
         super(LossHistory, self).__init__()
 
     def on_epoch_end(self, epoch, logs={}):
         self.train_losses.append(logs.get('loss'))
-        self.train_acc.append(logs.get('accuracy'))
         self.val_losses.append(logs.get('val_loss'))
-        self.val_acc.append(logs.get('val_accuracy'))
+        self.train_seg_f1.append(logs.get('seg_f1'))
+        self.val_seg_f1.append(logs.get('val_seg_f1'))
+        self.train_class_acc.append(logs.get('class_acc'))
+        self.val_class_acc.append(logs.get('val_class_acc'))
+
         gc.collect()
         if epoch%5 == 0:
             # Save model
@@ -89,7 +100,7 @@ def lr_scheduler(epoch, lr):
         return lr * decay_rate
     return lr
 
-## Load Mode and run training
+## Load Model and run training
 for batch_size in batch_sizes:
     for lr in learning_rates:
         if train or 'models_dir' not in params:
@@ -123,7 +134,7 @@ for batch_size in batch_sizes:
             model.save()
 
         if plot:
-            fig, ax = plt.subplots(nrows=1, ncols=2)
+            fig, ax = plt.subplots(nrows=1, ncols=3)
             model.train_plot(fig, ax, show_plot=False)
 
 if plot or train:

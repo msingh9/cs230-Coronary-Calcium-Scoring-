@@ -10,14 +10,19 @@ import sys
 import random
 
 class dataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final", upsample_ps=0):
-        self.pids = pids
+    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final",
+                 upsample_ps=0, limit_pids=None, shuffle=True):
+        if limit_pids:
+            self.pids = pids[0:limit_pids]
+        else:
+            self.pids = pids
         self.ddir = ddir
         # Load all the images across pids
         self.X = []
         self.mdata = []
         self.upsample_ps = upsample_ps
         self.cache = {}
+        self.shuffle = shuffle
 
         # Estimate total work
         total_work = 0
@@ -77,20 +82,21 @@ class dataGenerator(tf.keras.utils.Sequence):
             self.mdata = new_mdata
 
         # Reshuffle
-        indices = [i for i in range(len(self.X))]
-        random.shuffle(indices)
-        xxx = [self.X[i] for i in indices]
-        yyy = [self.mdata[i] for i in indices]
-        self.X = xxx
-        self.mdata = yyy
+        if self.shuffle:
+            indices = [i for i in range(len(self.X))]
+            random.shuffle(indices)
+            xxx = [self.X[i] for i in indices]
+            yyy = [self.mdata[i] for i in indices]
+            self.X = xxx
+            self.mdata = yyy
 
     def __len__(self):
         return math.ceil(len(self.X) / self.batch_size)
 
     def __getitem__(self, idx):
         if ((idx +1 ) * self.batch_size) > len(self.X):
-            Xs = self.X[idx * self.batch_size:len(self.X)]
-            mdatas = self.mdata[idx * self.batch_size:len(self.X)]
+            Xs = self.X[idx * self.batch_size : len(self.X)]
+            mdatas = self.mdata[idx * self.batch_size : len(self.X)]
         else:
             Xs = self.X[idx * self.batch_size:(idx + 1) * self.batch_size]
             mdatas = self.mdata[idx * self.batch_size:(idx + 1) * self.batch_size]
@@ -126,9 +132,10 @@ class dataGenerator(tf.keras.utils.Sequence):
 
     def on_epoch_end(self):
         # Reshuffle
-        indices = [i for i in range(len(self.X))]
-        random.shuffle(indices)
-        xxx = [self.X[i] for i in indices]
-        yyy = [self.mdata[i] for i in indices]
-        self.X = xxx
-        self.mdata = yyy
+        if self.shuffle:
+            indices = [i for i in range(len(self.X))]
+            random.shuffle(indices)
+            xxx = [self.X[i] for i in indices]
+            yyy = [self.mdata[i] for i in indices]
+            self.X = xxx
+            self.mdata = yyy
