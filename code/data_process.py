@@ -15,7 +15,7 @@ import xml.etree.ElementTree as et
 import plistlib
 import matplotlib.patches as patches
 import bz2
-from process_xml import process_xml
+from my_lib import process_xml
 
 # User options
 doPlot = False

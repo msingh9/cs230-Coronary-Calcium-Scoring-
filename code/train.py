@@ -22,11 +22,16 @@ import gc
 import models.unet as unet
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-batch_size", default=16, type=int)
+parser.add_argument("-batch_size", default=[8], type=int, action='append', help="List of batch sizes")
 parser.add_argument("-epochs", default=20, type=int)
-parser.add_argument("-max_train_patients", default=None, type=int)
-parser.add_argument("-dice_loss_fraction", default=1.0, type=float)
-parser.add_argument("-upsample_ps", default=40, type=int)
+parser.add_argument("-max_train_patients", default=20, type=int, help="To limit number of training examples")
+parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
+parser.add_argument("-upsample_ps", default=40, type=int, help="Non zero value to enable up-sampling positive samples during training")
+parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
+parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
+parser.add_argument("--plot", action="store_true", default=True, help="Plot the metric/loss")
+parser.add_argument("--train", action="store_true", default=True, help="Train the model")
+parser.add_argument("-lr", help="List of learning rates", action='append', default=[0.0001])
 args = parser.parse_args()
 
 # User options
@@ -34,37 +39,36 @@ args = parser.parse_args()
 #os.environ["TF_GPU_ALLOCATOR"]='cuda_malloc_async'
 model_name = 'unet'
 use_adam = True
-learning_rates = [0.0001]
+learning_rates = args.lr
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [args.batch_size]
+batch_sizes = args.batch_size
 epochs = args.epochs
-plot = True
-train = True
+plot = args.plot
+train = args.train
 
 # Model parameters
 params = {}
-params['resetHistory'] = False
+params['resetHistory'] = True
 params['print_summary'] = False
 params['dropout'] = 0
 params['data_aug_enable'] = False
-params['models_dir'] = '../trained_models/' + model_name
+params['models_dir'] = args.mdir + "/" + model_name
 params['upsample_ps'] = args.upsample_ps ; # set non-zero integer to up-sample positive samples
 params['limit_pids'] = args.max_train_patients
 params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
 params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
+params['ddir'] = args.ddir
 
-# data set directory
-ddir = "../dataset"
-
+ddir = params['ddir']
 # Read train, dev and test set Ids
-fname = ddir + "/sample_gated_train_dev_pids.dump"
+fname = ddir + "/gated_train_dev_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading train/dev from {fname}")
     train_pids, dev_pids = pickle.load(fin)
 
-fname = ddir + "/sample_gated_test_pids.dump"
+fname = ddir + "/gated_test_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)

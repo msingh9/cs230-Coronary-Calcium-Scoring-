@@ -29,7 +29,7 @@ class Model(BaseModel):
 
             # second layer
             x = Conv2D(filters=n_filters, kernel_size=(kernel_size, kernel_size),
-                       kernel_initializer='he_normal', padding='same')(input_tensor)
+                       kernel_initializer='he_normal', padding='same')(x)
             if self.batchnorm:
                 x = BatchNormalization()(x)
             x = Activation('relu')(x)

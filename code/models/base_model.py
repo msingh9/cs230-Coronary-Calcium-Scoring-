@@ -132,8 +132,9 @@ class BaseModel:
     def train(self, batch_size, epochs, lr_scheduler):
         # default
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
-                                     limit_pids=self.params['limit_pids']), batch_size=batch_size, epochs=epochs,
-                       validation_data=dataGenerator(self.dev_pids, batch_size),
+                                     limit_pids=self.params['limit_pids'], ddir=self.params['ddir']),
+                       batch_size=batch_size, epochs=epochs,
+                       validation_data=dataGenerator(self.dev_pids, batch_size, ddir=self.params['ddir']),
                        callbacks = [self.history,
                                         tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1)])
 
@@ -169,10 +170,6 @@ class BaseModel:
         print('seg_class_acc: ' + str(self.history.train_class_acc[-5:-1]))
         print('val_class_acc: ' + str(self.history.val_class_acc[-5:-1]))
         print('epochs:   ' + str(len(self.history.train_losses)))
-
-        #plot_file_name = self.name + "_plot.png"
-        #print (f"Saving plot in {plot_file_name}")
-        #plt.savefig(plot_file_name)
 
         if show_plot:
             plt.show()

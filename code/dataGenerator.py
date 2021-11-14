@@ -1,5 +1,5 @@
 from pydicom import dcmread
-from process_xml import process_xml
+from my_lib import process_xml
 import tensorflow as tf
 import math
 import os
@@ -10,13 +10,13 @@ import sys
 import random
 
 class dataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, pids, batch_size, ddir="../dataset/cocacoronarycalciumandchestcts-2/Gated_release_final",
+    def __init__(self, pids, batch_size, ddir="../dataset",
                  upsample_ps=0, limit_pids=None, shuffle=True):
         if limit_pids:
             self.pids = pids[0:limit_pids]
         else:
             self.pids = pids
-        self.ddir = ddir
+        self.ddir = ddir + '/cocacoronarycalciumandchestcts-2/Gated_release_final'
         # Load all the images across pids
         self.X = []
         self.mdata = []
@@ -28,13 +28,12 @@ class dataGenerator(tf.keras.utils.Sequence):
         total_work = 0
         progress_count = 0
         for pid in self.pids:
-            for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
+            for subdir, dirs, files in os.walk(self.ddir + "/patient/" + str(pid) + '/'):
                 total_work += len(files)
 
         print ("Loading dataset")
         for i, pid in enumerate(self.pids):
-            for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
-                print(f"In subdir {subdir} with index {i}")
+            for subdir, dirs, files in os.walk(self.ddir + "/patient/" + str(pid) + '/'):
                 for iidx, filename in enumerate(sorted(files, reverse=True)):
                     progress_count += 1
                     if (progress_count % 64 == 0):
