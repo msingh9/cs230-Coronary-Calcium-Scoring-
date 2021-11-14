@@ -1,3 +1,25 @@
+# def transform_to_hu(slices):
+#     images = np.stack([file.pixel_array for file in slices])
+#     images = images.astype(np.int16)
+#     images = set_outside_scanner_to_air(images)
+#
+#     # convert to HU
+#     for n in range(len(slices)):
+#
+#         intercept = slices[n].RescaleIntercept
+#         slope = slices[n].RescaleSlope
+#
+#         if slope != 1:
+#             images[n] = slope * images[n].astype(np.float64)
+#             images[n] = images[n].astype(np.int16)
+#
+#         images[n] += np.int16(intercept)
+#
+#     return np.array(images, dtype=np.int16)
+#
+# hu_images = transform_to_hu(images)
+
+
 
 import numpy as np
 import pydicom
@@ -14,6 +36,19 @@ import sys
 import xml.etree.ElementTree as et
 import plistlib
 import matplotlib.patches as patches
+import seaborn as sns
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+
 
 # set the random seed to create the same train/val/test split
 np.random.seed(10015321)
@@ -23,6 +58,8 @@ debug = 2
 def myprint(msg, level):
     if level <= debug:
         print (msg)
+
+print("test")
 
 # data path directory
 ddir = "/Users/namaste/PycharmProjects/cs230data/dataset/cocacoronarycalciumandchestcts-2/"
@@ -114,9 +151,49 @@ if doPlot:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".dcm"):
                 ds = dcmread(filepath)
-                images.append(ds.pixel_array)
+                images.append(ds)
 
-    images = np.array(images)
+
+    def set_outside_scanner_to_air(raw_pixelarrays):
+        # in OSIC we find outside-scanner-regions with raw-values of -2000.
+        # Let's threshold between air (0) and this default (-2000) using -1000
+        raw_pixelarrays[raw_pixelarrays <= -1000] = 0
+        print("test")
+        return raw_pixelarrays
+
+    def transform_to_hu(slices):
+        images = np.stack([file.pixel_array for file in slices])
+        images = images.astype(np.int16)
+        images = set_outside_scanner_to_air(images)
+
+        # convert to HU
+        for n in range(len(slices)):
+
+            intercept = slices[n].RescaleIntercept
+            slope = slices[n].RescaleSlope
+
+            if slope != 1:
+                images[n] = slope * images[n].astype(np.float64)
+                images[n] = images[n].astype(np.int16)
+
+            images[n] += np.int16(intercept)
+
+        return np.array(images, dtype=np.int16)
+
+    hu_images = transform_to_hu(images)
+
+
+    plt.imshow(images[4].pixel_array, plt.cm.bone)
+    print("printing non-HU version")
+    print(images[4].pixel_array[300, 300])
+    plt.show()
+
+    plt.imshow(hu_images[4], plt.cm.bone)
+    print("printing HU version")
+    print(hu_images[4][300, 300])
+    plt.show()
+
+
     if sdir_id == "G":
         fname = "%s/%s/calcium_xml/%s.xml" %(ddir, sdirs[sdir_id], pid)
         myprint(f"Processing {fname}", 2)
@@ -163,6 +240,7 @@ if doPlot:
             fig.canvas.draw()
 
 
+
         def multi_slice_viewer(volume):
             global plot_cid
             fig, ax = plt.subplots(1,2)
@@ -187,7 +265,13 @@ if doPlot:
 
         plt.show()
 
+
+
+
     exit()
+
+
+
 
 data = {}
 # {G: {<pid>: {images: [], mdata: {}},

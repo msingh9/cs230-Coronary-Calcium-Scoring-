@@ -32,8 +32,9 @@ class dataGenerator(tf.keras.utils.Sequence):
                 total_work += len(files)
 
         print ("Loading dataset")
-        for pid in self.pids:
+        for i, pid in enumerate(self.pids):
             for subdir, dirs, files in os.walk(ddir + "/patient/" + str(pid) + '/'):
+                print(f"In subdir {subdir} with index {i}")
                 for iidx, filename in enumerate(sorted(files, reverse=True)):
                     progress_count += 1
                     if (progress_count % 64 == 0):
@@ -48,7 +49,7 @@ class dataGenerator(tf.keras.utils.Sequence):
         sys.stdout.write("\n")
 
         # Normalize Xs
-        print(len(self.X))
+        print(f'Read {len(self.X)} examples before upsampling.')
         print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
         norm_const = np.array(2 ** 16 - 1).astype('float32')
         print("Normalizing inputs, it takes a little while")

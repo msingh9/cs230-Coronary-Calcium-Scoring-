@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
@@ -20,6 +21,12 @@ import gc
 # import models
 import models.unet as unet
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--batch_size", default=16, type=int)
+parser.add_argument("--epochs", default=20, type=int)
+parser.add_argument("--max_train_patients", default=None, type=int)
+args = parser.parse_args()
+
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 #os.environ["TF_GPU_ALLOCATOR"]='cuda_malloc_async'
@@ -29,36 +36,36 @@ learning_rates = [0.0001]
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [8]
-epochs = 5
+batch_sizes = [args.batch_size]
+epochs = args.epochs
 plot = True
 train = True
 
 # Model parameters
 params = {}
 params['resetHistory'] = False
-params['print_summary'] = True
+params['print_summary'] = False
 params['dropout'] = 0
 params['data_aug_enable'] = False
 params['models_dir'] = '../trained_models/' + model_name
 params['upsample_ps'] = 40 ; # set non-zero integer to up-sample positive samples
 params['limit_pids'] = None
 params['alpha'] = 1.0 ; # fraction of dice loss
+params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
 
 # data set directory
 ddir = "../dataset"
 
 # Read train, dev and test set Ids
-fname = ddir + "/gated_train_dev_pids.dump"
+fname = ddir + "/sample_gated_train_dev_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading train/dev from {fname}")
     train_pids, dev_pids = pickle.load(fin)
 
-fname = ddir + "/gated_test_pids.dump"
+fname = ddir + "/sample_gated_test_pids.dump"
 with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
-
 
 print (train_pids)
 print (dev_pids)
