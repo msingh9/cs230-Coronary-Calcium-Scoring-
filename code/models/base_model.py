@@ -1,5 +1,6 @@
 # Libraries
 import os
+import datetime
 import pickle
 import tensorflow as tf
 import random
@@ -130,13 +131,19 @@ class BaseModel:
         self.model.compile(optimizer=optimizer, loss=self.loss, metrics=[self.seg_f1, self.class_acc])
 
     def train(self, batch_size, epochs, lr_scheduler):
-        # default
+        log_dir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
                                      limit_pids=self.params['limit_pids'], ddir=self.params['ddir']),
                        batch_size=batch_size, epochs=epochs,
-                       validation_data=dataGenerator(self.dev_pids, batch_size, ddir=self.params['ddir']),
+                       validation_data=dataGenerator(
+                         self.dev_pids, batch_size, ddir=self.params['ddir'], limit_pids=self.params['limit_pids']),
+                       # Set steps_per_epoch so tensorboard produces eval
+                       # metrics more frequently than once per epoch.
+                       steps_per_epoch=self.params['steps_per_epoch'], 
                        callbacks = [self.history,
-                                        tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1)])
+                                    tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
+                                    tf.keras.callbacks.TensorBoard(log_dir)
+                                    ])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):
         if not label:

@@ -22,16 +22,18 @@ import gc
 import models.unet as unet
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-batch_size", default=[8], type=int, action='append', help="List of batch sizes")
+parser.add_argument("-batch_size", type=int, help="List of batch sizes")
 parser.add_argument("-epochs", default=20, type=int)
 parser.add_argument("-max_train_patients", default=20, type=int, help="To limit number of training examples")
 parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
 parser.add_argument("-upsample_ps", default=40, type=int, help="Non zero value to enable up-sampling positive samples during training")
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
+parser.add_argument("-patient_splits_dir", type=str, help="Directory in which patient splits are located.", default=None)
 parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
 parser.add_argument("--plot", action="store_true", default=True, help="Plot the metric/loss")
 parser.add_argument("--train", action="store_true", default=True, help="Train the model")
 parser.add_argument("-lr", help="List of learning rates", action='append', default=[0.0001])
+parser.add_argument("-steps_per_epoch", default=None, type=int, help="Number of steps per epoch. Set this to increase the frequency at which Tensorboard reports eval metrics. If None, it will report eval once per epoch.")
 args = parser.parse_args()
 
 # User options
@@ -43,7 +45,7 @@ learning_rates = args.lr
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = args.batch_size
+batch_sizes = [args.batch_size]
 epochs = args.epochs
 plot = args.plot
 train = args.train
@@ -58,17 +60,21 @@ params['models_dir'] = args.mdir + "/" + model_name
 params['upsample_ps'] = args.upsample_ps ; # set non-zero integer to up-sample positive samples
 params['limit_pids'] = args.max_train_patients
 params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
-params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
 params['ddir'] = args.ddir
+params['steps_per_epoch'] = args.steps_per_epoch
 
-ddir = params['ddir']
+if args.patient_splits_dir is None:
+  patient_splits_dir = args.ddir
+else:
+  patient_splits_dir = args.patient_splits_dir
+
 # Read train, dev and test set Ids
-fname = ddir + "/gated_train_dev_pids.dump"
+fname = os.path.join(patient_splits_dir, "gated_train_dev_pids.dump")
 with open(fname, 'rb') as fin:
     print(f"Loading train/dev from {fname}")
     train_pids, dev_pids = pickle.load(fin)
 
-fname = ddir + "/gated_test_pids.dump"
+fname = os.path.join(patient_splits_dir, "gated_test_pids.dump")
 with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
@@ -92,7 +98,7 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.acc_epochs = 0
         super(LossHistory, self).__init__()
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs):
         self.train_losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
         self.train_seg_f1.append(logs.get('seg_f1'))
