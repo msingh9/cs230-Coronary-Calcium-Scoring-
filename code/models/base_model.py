@@ -131,7 +131,11 @@ class BaseModel:
         self.model.compile(optimizer=optimizer, loss=self.loss, metrics=[self.seg_f1, self.class_acc])
 
     def train(self, batch_size, epochs, lr_scheduler):
-        log_dir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+        time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_dir = os.path.join("logs", time)
+        save_freq = self.params['model_save_freq_steps']
+        if not save_freq:
+          save_freq = 'epoch'
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
                                      limit_pids=self.params['limit_pids'], ddir=self.params['ddir']),
                        batch_size=batch_size, epochs=epochs,
@@ -142,7 +146,14 @@ class BaseModel:
                        steps_per_epoch=self.params['steps_per_epoch'], 
                        callbacks = [self.history,
                                     tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
-                                    tf.keras.callbacks.TensorBoard(log_dir)
+                                    tf.keras.callbacks.TensorBoard(log_dir),
+                                    tf.keras.callbacks.ModelCheckpoint(
+                                      save_weights_only=False,
+                                      monitor='val_loss',
+                                      filepath=os.path.join('checkpoints', 'ckpt.{epoch:02d}.hdf5'),
+                                      mode='min',
+                                      save_best_only=False,
+                                      save_freq=save_freq,
                                     ])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):

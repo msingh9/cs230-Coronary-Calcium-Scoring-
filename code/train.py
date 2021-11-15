@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
@@ -30,11 +31,17 @@ parser.add_argument("-upsample_ps", default=40, type=int, help="Non zero value t
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
 parser.add_argument("-patient_splits_dir", type=str, help="Directory in which patient splits are located.", default=None)
 parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
-parser.add_argument("--plot", action="store_true", default=True, help="Plot the metric/loss")
-parser.add_argument("--train", action="store_true", default=True, help="Train the model")
+parser.add_argument("-plot", action="store_true", default=True, help="Plot the metric/loss")
+parser.add_argument("-train", action="store_true", default=True, help="Train the model")
 parser.add_argument("-lr", help="List of learning rates", action='append', default=[0.0001])
 parser.add_argument("-steps_per_epoch", default=None, type=int, help="Number of steps per epoch. Set this to increase the frequency at which Tensorboard reports eval metrics. If None, it will report eval once per epoch.")
+parser.add_argument("-model_save_freq_steps", default=None, type=int,
+                    help="Save the model at the end of this many batches. If low,"
+                    "can slow down training. If none, save after each epoch.")
 args = parser.parse_args()
+
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+print(f'Launched at {current_time}')
 
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -62,6 +69,7 @@ params['limit_pids'] = args.max_train_patients
 params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
 params['ddir'] = args.ddir
 params['steps_per_epoch'] = args.steps_per_epoch
+params['model_save_freq_steps'] = args.model_save_freq_steps
 
 if args.patient_splits_dir is None:
   patient_splits_dir = args.ddir
@@ -107,10 +115,10 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.val_class_acc.append(logs.get('val_class_acc'))
 
         gc.collect()
-        if epoch%5 == 0:
-            # Save model
-            print ("Saving the model in ../experiments/current/m_" + str(epoch))
-            model.save('../experiments/current/m_' + str(epoch))
+    #     if epoch%5 == 0:
+    #         # Save model
+    #         print ("Saving the model in ../experiments/current/m_" + str(epoch))
+    #         model.save('../experiments/current/m_' + str(epoch))
 
 # learning rate scheduler
 def lr_scheduler(epoch, lr):
