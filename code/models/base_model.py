@@ -152,8 +152,8 @@ class BaseModel:
                                       monitor='val_loss',
                                       filepath=os.path.join('checkpoints', 'ckpt.{epoch:02d}.hdf5'),
                                       mode='min',
-                                      save_best_only=False,
-                                      save_freq=save_freq,
+                                      save_best_only=True,
+                                      save_freq=save_freq),
                                     ])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):

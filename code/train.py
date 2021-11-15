@@ -8,6 +8,7 @@ import pickle
 import tensorflow as tf
 import random
 import os
+import pytz
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 import csv
@@ -40,8 +41,12 @@ parser.add_argument("-model_save_freq_steps", default=None, type=int,
                     "can slow down training. If none, save after each epoch.")
 args = parser.parse_args()
 
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-print(f'Launched at {current_time}')
+TIME_FORMAT = "%Y-%m-%d-%H-%M"
+
+def get_time():
+  return datetime.datetime.now(pytz.timezone('US/Pacific')).strftime(TIME_FORMAT)
+start_time = get_time()
+print(f'Launched at {start_time}')
 
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -115,10 +120,10 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.val_class_acc.append(logs.get('val_class_acc'))
 
         gc.collect()
-    #     if epoch%5 == 0:
-    #         # Save model
-    #         print ("Saving the model in ../experiments/current/m_" + str(epoch))
-    #         model.save('../experiments/current/m_' + str(epoch))
+        if epoch%5 == 0:
+            # Save model
+            print ("Saving the model in ../experiments/current/m_" + str(epoch))
+            model.save('../experiments/current/m_' + str(epoch))
 
 # learning rate scheduler
 def lr_scheduler(epoch, lr):
@@ -164,6 +169,9 @@ for batch_size in batch_sizes:
             fig, ax = plt.subplots(nrows=1, ncols=3)
             model.train_plot(fig, ax, show_plot=False)
 
+end_time = get_time()
+elapsed_time = (end_time - start_time).total_seconds() / 3600
+print(f'Completed at {start_time}. Elapsed hours: {elapsed_time}')
 if plot or train:
     plt.show()
 
