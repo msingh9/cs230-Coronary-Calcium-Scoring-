@@ -44,7 +44,7 @@ args = parser.parse_args()
 TIME_FORMAT = "%Y-%m-%d-%H-%M"
 
 def get_time():
-  return datetime.datetime.now(pytz.timezone('US/Pacific')).strftime(TIME_FORMAT)
+  return datetime.datetime.now(pytz.timezone('US/Pacific'))
 start_time = get_time()
 print(f'Launched at {start_time}')
 
@@ -171,7 +171,7 @@ for batch_size in batch_sizes:
 
 end_time = get_time()
 elapsed_time = (end_time - start_time).total_seconds() / 3600
-print(f'Completed at {start_time}. Elapsed hours: {elapsed_time}')
+print(f'Completed at {end_time}. Elapsed hours: {elapsed_time}')
 if plot or train:
     plt.show()
 
