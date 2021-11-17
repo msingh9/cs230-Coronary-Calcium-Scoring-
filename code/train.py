@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import numpy as np
 import pydicom
 from pydicom.data import get_testdata_file
@@ -7,6 +8,7 @@ import pickle
 import tensorflow as tf
 import random
 import os
+import pytz
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 import csv
@@ -28,12 +30,24 @@ parser.add_argument("-max_train_patients", default=None, type=int, help="To limi
 parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
 parser.add_argument("-upsample_ps", default=None, type=int, help="Non zero value to enable up-sampling positive samples during training")
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
+parser.add_argument("-patient_splits_dir", type=str, help="Directory in which patient splits are located.", default=None)
 parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
 parser.add_argument("--plot", action="store_true", default=True, help="Plot the metric/loss")
 parser.add_argument("--train", action="store_true", default=False, help="Train the model")
 parser.add_argument("--hsen", action="store_true", default=False, help="Generate random hyper parameters")
 parser.add_argument("-lr", help="List of learning rates", action='append', type=float)
+parser.add_argument("-steps_per_epoch", default=None, type=int, help="Number of steps per epoch. Set this to increase the frequency at which Tensorboard reports eval metrics. If None, it will report eval once per epoch.")
+parser.add_argument("-model_save_freq_steps", default=None, type=int,
+                    help="Save the model at the end of this many batches. If low,"
+                    "can slow down training. If none, save after each epoch.")
 args = parser.parse_args()
+
+TIME_FORMAT = "%Y-%m-%d-%H-%M"
+
+def get_time():
+  return datetime.datetime.now(pytz.timezone('US/Pacific'))
+start_time = get_time()
+print(f'Launched at {start_time}')
 
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -44,7 +58,7 @@ learning_rates = args.lr
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = args.batch_size
+batch_sizes = [args.batch_size]
 epochs = args.epochs
 plot = args.plot
 train = args.train
@@ -64,17 +78,22 @@ params['models_dir'] = args.mdir + "/" + model_name
 params['upsample_ps'] = args.upsample_ps ; # set non-zero integer to up-sample positive samples
 params['limit_pids'] = args.max_train_patients
 params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
-params['coca_dir'] = '/content/cs230-Coronary-Calcium-Scoring-/mini_dataset/Gated_release_final'
 params['ddir'] = args.ddir
+params['steps_per_epoch'] = args.steps_per_epoch
+params['model_save_freq_steps'] = args.model_save_freq_steps
 
-ddir = params['ddir']
+if args.patient_splits_dir is None:
+  patient_splits_dir = args.ddir
+else:
+  patient_splits_dir = args.patient_splits_dir
+
 # Read train, dev and test set Ids
-fname = ddir + "/gated_train_dev_pids.dump"
+fname = os.path.join(patient_splits_dir, "gated_train_dev_pids.dump")
 with open(fname, 'rb') as fin:
     print(f"Loading train/dev from {fname}")
     train_pids, dev_pids = pickle.load(fin)
 
-fname = ddir + "/gated_test_pids.dump"
+fname = os.path.join(patient_splits_dir, "gated_test_pids.dump")
 with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
@@ -98,7 +117,7 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.acc_epochs = 0
         super(LossHistory, self).__init__()
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs):
         self.train_losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
         self.train_seg_f1.append(logs.get('seg_f1'))
@@ -156,6 +175,9 @@ for batch_size in batch_sizes:
             fig, ax = plt.subplots(nrows=1, ncols=3)
             model.train_plot(fig, ax, show_plot=False)
 
+end_time = get_time()
+elapsed_time = (end_time - start_time).total_seconds() / 3600
+print(f'Completed at {end_time}. Elapsed hours: {elapsed_time}')
 if plot or train:
     plt.show()
 

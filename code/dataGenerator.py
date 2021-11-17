@@ -16,7 +16,7 @@ class dataGenerator(tf.keras.utils.Sequence):
             self.pids = pids[0:limit_pids]
         else:
             self.pids = pids
-        self.ddir = ddir + '/cocacoronarycalciumandchestcts-2/Gated_release_final'
+        self.ddir = ddir
         # Load all the images across pids
         self.X = []
         self.mdata = []
@@ -80,7 +80,7 @@ class dataGenerator(tf.keras.utils.Sequence):
                     new_mdata.append((pid, iidx))
             self.X = new_X
             self.mdata = new_mdata
-
+        print(f'Using {len(self.X)} examples after optional upsampling.')
         # Reshuffle
         if self.shuffle:
             indices = [i for i in range(len(self.X))]

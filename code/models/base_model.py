@@ -1,5 +1,6 @@
 # Libraries
 import os
+import datetime
 import pickle
 import tensorflow as tf
 import random
@@ -131,13 +132,30 @@ class BaseModel:
         self.model.compile(optimizer=optimizer, loss=self.loss, metrics=[self.seg_f1, self.class_acc])
 
     def train(self, batch_size, epochs, lr_scheduler):
-        # default
+        time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_dir = os.path.join("logs", time)
+        save_freq = self.params['model_save_freq_steps']
+        if not save_freq:
+          save_freq = 'epoch'
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
                                      limit_pids=self.params['limit_pids'], ddir=self.params['ddir']),
                        batch_size=batch_size, epochs=epochs,
-                       validation_data=dataGenerator(self.dev_pids, batch_size, ddir=self.params['ddir']),
+                       validation_data=dataGenerator(
+                         self.dev_pids, batch_size, ddir=self.params['ddir'], limit_pids=self.params['limit_pids']),
+                       # Set steps_per_epoch so tensorboard produces eval
+                       # metrics more frequently than once per epoch.
+                       steps_per_epoch=self.params['steps_per_epoch'], 
                        callbacks = [self.history,
-                                        tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1)])
+                                    tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
+                                    tf.keras.callbacks.TensorBoard(log_dir),
+                                    tf.keras.callbacks.ModelCheckpoint(
+                                      save_weights_only=False,
+                                      monitor='val_loss',
+                                      filepath=os.path.join('checkpoints', 'ckpt.{epoch:02d}.hdf5'),
+                                      mode='min',
+                                      save_best_only=True,
+                                      save_freq=save_freq),
+                                    ])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):
         if not label:
