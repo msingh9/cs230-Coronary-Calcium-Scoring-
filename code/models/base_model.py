@@ -10,7 +10,8 @@ from tensorflow.keras.utils import plot_model
 import shutil
 from dataGenerator import dataGenerator
 
-random.seed(1223143)
+
+#random.seed(1223143)
 
 # base class for all models
 # Describe each method (function)
@@ -81,7 +82,7 @@ class BaseModel:
 
     # Loss function
     def loss(self, targets, inputs, smooth=1e-6):
-
+        # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
         # flatten label and prediction tensors
         inputs_s = K.flatten(inputs[:, :, :, 0])
         targets_s = K.flatten(targets[:, :, :, 0])

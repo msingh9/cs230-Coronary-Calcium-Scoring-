@@ -22,16 +22,17 @@ import gc
 import models.unet as unet
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-batch_size", default=[8], type=int, action='append', help="List of batch sizes")
-parser.add_argument("-epochs", default=20, type=int)
-parser.add_argument("-max_train_patients", default=20, type=int, help="To limit number of training examples")
+parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
+parser.add_argument("-epochs", default=5, type=int)
+parser.add_argument("-max_train_patients", default=None, type=int, help="To limit number of training examples")
 parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
-parser.add_argument("-upsample_ps", default=40, type=int, help="Non zero value to enable up-sampling positive samples during training")
+parser.add_argument("-upsample_ps", default=None, type=int, help="Non zero value to enable up-sampling positive samples during training")
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
 parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
 parser.add_argument("--plot", action="store_true", default=True, help="Plot the metric/loss")
-parser.add_argument("--train", action="store_true", default=True, help="Train the model")
-parser.add_argument("-lr", help="List of learning rates", action='append', default=[0.0001])
+parser.add_argument("--train", action="store_true", default=False, help="Train the model")
+parser.add_argument("--hsen", action="store_true", default=False, help="Generate random hyper parameters")
+parser.add_argument("-lr", help="List of learning rates", action='append', type=float)
 args = parser.parse_args()
 
 # User options
@@ -47,6 +48,11 @@ batch_sizes = args.batch_size
 epochs = args.epochs
 plot = args.plot
 train = args.train
+
+# Hyper parameter search
+if args.hsen:
+    learning_rates = [10**random.uniform(-2,-5)]
+    print (learning_rates)
 
 # Model parameters
 params = {}
@@ -73,8 +79,8 @@ with open(fname, 'rb') as fin:
     print(f"Loading test from {fname}")
     test_pids = pickle.load(fin)
 
-print (train_pids)
-print (dev_pids)
+#print (train_pids)
+#print (dev_pids)
 
 print (f"Total train samples {len(train_pids)}")
 print (f"Total dev samples {len(dev_pids)}")
