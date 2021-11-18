@@ -23,6 +23,8 @@ import gc
 # import models
 import models.unet as unet
 
+loss_choices = ("bce", "dice", "focal")
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
 parser.add_argument("-epochs", default=5, type=int)
@@ -40,6 +42,9 @@ parser.add_argument("-steps_per_epoch", default=None, type=int, help="Number of 
 parser.add_argument("-model_save_freq_steps", default=None, type=int,
                     help="Save the model at the end of this many batches. If low,"
                     "can slow down training. If none, save after each epoch.")
+parser.add_argument("-loss", type=str, choices=loss_choices, default='dice', help=f"Pick loss from {loss_choices}")
+parser.add_argument("--reset", default=False, action="store_true", help="To reset model")
+parser.add_argument("--only_use_pos_images", action="store_true", default=False, help="Train with positive images only")
 args = parser.parse_args()
 
 TIME_FORMAT = "%Y-%m-%d-%H-%M"
@@ -54,11 +59,14 @@ print(f'Launched at {start_time}')
 #os.environ["TF_GPU_ALLOCATOR"]='cuda_malloc_async'
 model_name = 'unet'
 use_adam = True
-learning_rates = args.lr
+if args.lr:
+    learning_rates = args.lr
+else:
+    learning_rates = [0.0001]
 decay_rate = 0
 decay_epochs = 10
 momentum = 0.9
-batch_sizes = [args.batch_size]
+batch_sizes = args.batch_size
 epochs = args.epochs
 plot = args.plot
 train = args.train
@@ -70,7 +78,7 @@ if args.hsen:
 
 # Model parameters
 params = {}
-params['resetHistory'] = True
+params['resetHistory'] = args.reset
 params['print_summary'] = False
 params['dropout'] = 0
 params['data_aug_enable'] = False
@@ -81,6 +89,8 @@ params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
 params['ddir'] = args.ddir
 params['steps_per_epoch'] = args.steps_per_epoch
 params['model_save_freq_steps'] = args.model_save_freq_steps
+params['loss'] = args.loss
+params['only_use_pos_images'] = args.only_use_pos_images
 
 if args.patient_splits_dir is None:
   patient_splits_dir = args.ddir
@@ -122,8 +132,8 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.val_losses.append(logs.get('val_loss'))
         self.train_seg_f1.append(logs.get('seg_f1'))
         self.val_seg_f1.append(logs.get('val_seg_f1'))
-        self.train_class_acc.append(logs.get('class_acc'))
-        self.val_class_acc.append(logs.get('val_class_acc'))
+        self.train_class_acc.append(logs.get('acc'))
+        self.val_class_acc.append(logs.get('val_acc'))
 
         gc.collect()
         if epoch%5 == 0:

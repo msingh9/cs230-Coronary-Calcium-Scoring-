@@ -11,18 +11,23 @@ import random
 
 class dataGenerator(tf.keras.utils.Sequence):
     def __init__(self, pids, batch_size, ddir="../dataset",
-                 upsample_ps=0, limit_pids=None, shuffle=True):
+                 upsample_ps=0, limit_pids=None, shuffle=True, only_use_pos_images=False):
         if limit_pids:
             self.pids = pids[0:limit_pids]
         else:
             self.pids = pids
-        self.ddir = ddir
+        print (ddir)
+        if (ddir == "../mini_dataset"):
+            self.ddir = ddir + "/Gated_release_final"
+        else:
+            self.ddir = ddir + "/cocacoronarycalciumandchestcts-2/Gated_release_final"
         # Load all the images across pids
         self.X = []
         self.mdata = []
         self.upsample_ps = upsample_ps
         self.cache = {}
         self.shuffle = shuffle
+        self.only_use_pos_images = only_use_pos_images
 
         # Estimate total work
         total_work = 0
@@ -46,6 +51,28 @@ class dataGenerator(tf.keras.utils.Sequence):
                         self.mdata.append((pid, iidx)) ;# iidx is image index
         self.batch_size = batch_size
         sys.stdout.write("\n")
+
+        if self.only_use_pos_images:
+            print(f"Filtering to only have positive images")
+            new_X = []
+            new_mdata = []
+            for index, (pid, iidx) in enumerate(self.mdata):
+                fname = self.ddir + "/calcium_xml/" + str(pid) + (".xml")
+                if not os.path.exists(fname):
+                    continue
+                if fname not in self.cache:
+                    mdata = process_xml(fname)
+                    self.cache[fname] = mdata
+                else:
+                    mdata = self.cache[fname]
+                # mdata format is:
+                #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
+                if iidx not in mdata:
+                    continue
+                new_X.append(self.X[index])
+                new_mdata.append((pid, iidx))
+            self.X = new_X
+            self.mdata = new_mdata
 
         # Normalize Xs
         print(f'Read {len(self.X)} examples before upsampling.')
@@ -103,7 +130,7 @@ class dataGenerator(tf.keras.utils.Sequence):
 
         height, width = Xs[0].shape
         m = len(Xs)
-        Ys = np.zeros((m, height, width, 5))
+        Ys = np.zeros((m, height, width, 1))
 
         # load XML and prepare Ys
         for index, (pid, iidx) in enumerate(mdatas):
@@ -125,9 +152,9 @@ class dataGenerator(tf.keras.utils.Sequence):
                 coors = np.hstack((x.reshape(-1,1), y.reshape(-1,1)))
                 mask = poly_path.contains_points(coors).reshape(height, width)
                 Ys[index, :, :, 0] += mask
-                Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
+                #Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
 
-        Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
+        #Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
         return np.array(Xs).reshape(m, height, width, 1), Ys
 
     def on_epoch_end(self):

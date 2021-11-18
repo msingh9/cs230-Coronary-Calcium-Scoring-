@@ -51,7 +51,11 @@ class BaseModel:
         print (self.name)
         if not self.params['resetHistory'] and os.path.isfile(self.name + '.h5'):
             print("Loading model from " + self.name + '.h5')
-            self.model = load_model(self.name + '.h5', custom_objects={'loss' : self.loss, 'seg_f1': self.seg_f1, 'class_acc': self.class_acc})
+            self.model = load_model(self.name + '.h5',
+                                        custom_objects={'dice_loss' : self.dice_loss,
+                                                        'focal_loss' : self.focal_loss,
+                                                        'seg_f1': self.seg_f1,
+                                                        'class_acc': self.class_acc})
             if self.history:
                 with open(self.name + '.aux_data', 'rb') as fin:
                     self.history.train_losses, self.history.val_losses, \
@@ -82,25 +86,49 @@ class BaseModel:
             #plot_model(self.model, to_file=self.name + '.png')
 
     # Loss function
-    def loss(self, targets, inputs, smooth=1e-6):
+    def dice_loss(self, targets, inputs, smooth=1e-6):
         # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
         # flatten label and prediction tensors
-        inputs_s = K.flatten(inputs[:, :, :, 0])
-        targets_s = K.flatten(targets[:, :, :, 0])
+
+        m = tf.cast(tf.shape(targets)[0], tf.float32)
+        inputs_s = K.flatten(inputs)
+        targets_s = K.flatten(targets)
 
         intersection = K.sum(targets_s * inputs_s)
         dice = (2 * intersection + smooth) / (K.sum(targets_s) + K.sum(inputs_s) + smooth)
         dice_loss = 1 - dice
+        return dice_loss
 
-        cce = tf.keras.losses.CategoricalCrossentropy()
-        # Include CE loss when target is 1.
-        y_true = targets[:, :, :, 1:]
-        y_pred = inputs[:, :, :, 1:]
-        mask = targets[:, :, :, 0]
-        y_true_masked = tf.boolean_mask(y_true, mask)
-        y_pred_masked = tf.boolean_mask(y_pred, mask)
-        cross_entropy_loss = cce(y_true_masked, y_pred_masked)
-        return self.params['alpha'] * dice_loss + (1-self.params['alpha']) * cross_entropy_loss
+    def focal_loss(self, targets, inputs, alpha=0.8, gamma=0.2):
+        # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
+        inputs = K.flatten(inputs)
+        targets = K.flatten(targets)
+
+        BCE = K.binary_crossentropy(targets, inputs)
+        BCE_EXP = K.exp(-BCE)
+        focal_loss = K.mean(alpha * K.pow((1 - BCE_EXP), gamma) * BCE)
+
+        return focal_loss
+
+#
+#         # binary cross entropy loss for segmentation
+#         bce = tf.keras.losses.BinaryCrossentropy()
+#         binary_entropy_loss = bce(targets[:, :, :, 0], inputs[:, :, :, 0])
+#
+#         cce = tf.keras.losses.CategoricalCrossentropy()
+#         # Include CE loss when target is 1.
+#         if 0:
+#             y_true = targets[:, :, :, 1:]
+#             y_pred = inputs[:, :, :, 1:]
+#             mask = targets[:, :, :, 0]
+#             y_true_masked = tf.boolean_mask(y_true, mask)
+#             y_pred_masked = tf.boolean_mask(y_pred, mask)
+#             cross_entropy_loss = cce(y_true_masked, y_pred_masked)
+#         else:
+#             cross_entropy_loss = 0
+#         return dice_loss
+# #        return (self.params['alpha'] * (dice_loss + binary_entropy_loss) + (
+# #                    1 - self.params['alpha']) * cross_entropy_loss)
 
     # Our own evaluation metric
     def seg_f1(self, y_true, y_pred):
@@ -129,7 +157,17 @@ class BaseModel:
 
 
     def compile(self, optimizer):
-        self.model.compile(optimizer=optimizer, loss=self.loss, metrics=[self.seg_f1, self.class_acc])
+        if self.params['loss'] == 'bce':
+            self.model.compile(optimizer=optimizer, loss=['binary_crossentropy'],
+                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+        elif self.params['loss'] == 'dice':
+            self.model.compile(optimizer=optimizer, loss=self.dice_loss,
+                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+        elif self.params['loss'] == 'focal':
+            self.model.compile(optimizer=optimizer, loss=self.focal_loss,
+                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+        else:
+            exit("Loss not defined")
 
     def train(self, batch_size, epochs, lr_scheduler):
         time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -138,7 +176,9 @@ class BaseModel:
         if not save_freq:
           save_freq = 'epoch'
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
-                                     limit_pids=self.params['limit_pids'], ddir=self.params['ddir']),
+                                     limit_pids=self.params['limit_pids'], ddir=self.params['ddir'],
+                                     only_use_pos_images=self.params['only_use_pos_images']
+                                     ),
                        batch_size=batch_size, epochs=epochs,
                        validation_data=dataGenerator(
                          self.dev_pids, batch_size, ddir=self.params['ddir'], limit_pids=self.params['limit_pids']),
@@ -147,14 +187,14 @@ class BaseModel:
                        steps_per_epoch=self.params['steps_per_epoch'], 
                        callbacks = [self.history,
                                     tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1),
-                                    tf.keras.callbacks.TensorBoard(log_dir),
-                                    tf.keras.callbacks.ModelCheckpoint(
-                                      save_weights_only=False,
-                                      monitor='val_loss',
-                                      filepath=os.path.join('checkpoints', 'ckpt.{epoch:02d}.hdf5'),
-                                      mode='min',
-                                      save_best_only=True,
-                                      save_freq=save_freq),
+                                    #tf.keras.callbacks.TensorBoard(log_dir),
+                                    #tf.keras.callbacks.ModelCheckpoint(
+                                    #  save_weights_only=False,
+                                    #  monitor='val_seg_f1',
+                                    #  filepath=os.path.join('checkpoints', 'ckpt.{epoch:02d}.hdf5'),
+                                    #  mode='max',
+                                    #  save_best_only=True,
+                                    #  save_freq=save_freq),
                                     ])
 
     def train_plot(self, fig=None, ax=None, show_plot=True, label=None):

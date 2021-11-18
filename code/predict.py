@@ -17,10 +17,19 @@ import matplotlib.patches as patches
 import bz2
 import gc
 from my_lib import process_xml
+import argparse
 
 # import models
 import models.unet as unet
 
+loss_choices = ("bce", "dice", "focal")
+parser = argparse.ArgumentParser()
+parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
+parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
+parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
+parser.add_argument("-pid", default=0, type=int, help="pid to plot")
+parser.add_argument("-loss", type=str, choices=loss_choices, default='dice', help=f"Pick loss from {loss_choices}")
+args = parser.parse_args()
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 model_name = 'unet'
@@ -29,10 +38,11 @@ batch_size = 8
 # Model parameters
 params = {}
 params['reset_history'] = False ; # Keep this false
-params['models_dir'] = '../trained_models/' + model_name
+params['models_dir'] = args.mdir
+params['loss'] = args.loss
 
 # data set directory
-ddir = "../dataset"
+ddir = args.ddir
 
 # Read train, dev and test set Ids
 fname = ddir + "/gated_train_dev_pids.dump"
@@ -48,6 +58,11 @@ with open(fname, 'rb') as fin:
 print (f"Total train samples {len(train_pids)}")
 print (f"Total dev samples {len(dev_pids)}")
 print (f"Total test samples {len(test_pids)}")
+
+if (ddir == "../mini_dataset"):
+    ddir = ddir + "/Gated_release_final"
+else:
+    ddir = ddir + "/cocacoronarycalciumandchestcts-2/Gated_release_final"
 
 # Load Model
 if model_name == 'unet':
@@ -68,14 +83,13 @@ model.test_pids = test_pids
 # Plot original and prediction
 print (train_pids)
 print (dev_pids)
-plot_pid = 113
-Y_hat = model.my_predict([plot_pid], batch_size)
+Y_hat = model.my_predict([args.pid], batch_size)
 print (Y_hat.shape)
 
 plot_3d = True
 
 images = []
-for subdir, dirs, files in os.walk(ddir + "/cocacoronarycalciumandchestcts-2/Gated_release_final/patient/" + str(plot_pid) + '/'):
+for subdir, dirs, files in os.walk(ddir + "/patient/" + str(args.pid) + '/'):
     for filename in sorted(files, reverse=True):
         filepath = subdir + os.sep + filename
         if filepath.endswith(".dcm"):
@@ -85,7 +99,7 @@ for subdir, dirs, files in os.walk(ddir + "/cocacoronarycalciumandchestcts-2/Gat
 images = np.array(images)
 
 # read original mdata
-fname = ddir + "/cocacoronarycalciumandchestcts-2/Gated_release_final/calcium_xml/" + str(plot_pid) + (".xml")
+fname = ddir + "/calcium_xml/" + str(args.pid) + (".xml")
 if os.path.exists(fname):
     mdata = process_xml(fname)
 else:
@@ -96,6 +110,7 @@ else:
 pmdata = {}
 ## FIXME, extract the predicted cid
 for id in range(Y_hat.shape[0]):
+    print (np.sum(Y_hat[id] > 0.5))
     X, Y = np.where(Y_hat[id][:, :, 0] > 0.5)
     if len(Y) > 0:
         pmdata[id] = []

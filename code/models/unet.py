@@ -13,8 +13,8 @@ class Model(BaseModel):
     def __init__(self, history, params=None):
         self.name = 'unet'
         self.model = Sequential()
-        self.batchnorm = False
-        self.dropout = 0.5
+        self.batchnorm = True
+        self.dropout = 0.0
 
         inputs = Input(shape=(512, 512, 1))
 
@@ -101,8 +101,9 @@ class Model(BaseModel):
 
         # Final layer
         output0 = Conv2D(1, kernel_size=(1, 1), activation="sigmoid")(u1)
-        output1 = Conv2D(4, kernel_size=(1, 1), activation="softmax")(u1)
-        outputs = concatenate([output0, output1])
+        #output1 = Conv2D(4, kernel_size=(1, 1), activation="softmax")(u1)
+        #outputs = concatenate([output0, output1])
+        outputs = output0
 
         # Model
         self.model = m(inputs=[inputs], outputs=outputs)
