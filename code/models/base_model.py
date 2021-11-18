@@ -54,6 +54,7 @@ class BaseModel:
             self.model = load_model(self.name + '.h5',
                                         custom_objects={'dice_loss' : self.dice_loss,
                                                         'focal_loss' : self.focal_loss,
+                                                        'dice_n_bce_loss': self.dice_n_bce_loss,
                                                         'seg_f1': self.seg_f1,
                                                         'class_acc': self.class_acc})
             if self.history:
@@ -75,6 +76,7 @@ class BaseModel:
         self.sfname = self.name
         if name:
             self.sfname = name
+        print (f"Saving model {self.sfname}")
         self.model.save(self.sfname + '.h5')
         with open(self.sfname + '.aux_data', 'wb') as fout:
             pickle.dump((self.history.train_losses, self.history.val_losses,
@@ -94,10 +96,29 @@ class BaseModel:
         inputs_s = K.flatten(inputs)
         targets_s = K.flatten(targets)
 
+        #inputs_s = inputs_s * (1. - inputs_s)
+        intersection = K.sum(targets_s * inputs_s)
+        # Modified based on https://aclanthology.org/2020.acl-main.45.pdf
+        dice = (2 * intersection + smooth) / (K.sum(targets_s ** 2) + K.sum(inputs_s ** 2) + smooth)
+        dice_loss = 1 - dice
+        return dice_loss
+
+    def dice_n_bce_loss(self, targets, inputs, smooth=1e-6):
+        # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
+        # flatten label and prediction tensors
+
+        m = tf.cast(tf.shape(targets)[0], tf.float32)
+        inputs_s = K.flatten(inputs)
+        targets_s = K.flatten(targets)
+
         intersection = K.sum(targets_s * inputs_s)
         dice = (2 * intersection + smooth) / (K.sum(targets_s) + K.sum(inputs_s) + smooth)
         dice_loss = 1 - dice
-        return dice_loss
+
+        # binary cross entropy loss for segmentation
+        binary_entropy_loss = tf.nn.weighted_cross_entropy_with_logits(targets, inputs, pos_weight=0.8)
+
+        return (self.params['alpha'] * dice_loss + (1 - self.params['alpha']) * binary_entropy_loss)
 
     def focal_loss(self, targets, inputs, alpha=0.8, gamma=0.2):
         # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
@@ -163,6 +184,9 @@ class BaseModel:
         elif self.params['loss'] == 'dice':
             self.model.compile(optimizer=optimizer, loss=self.dice_loss,
                                metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+        elif self.params['loss'] == 'dice_n_bce':
+            self.model.compile(optimizer=optimizer, loss=self.dice_n_bce_loss,
+                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'focal':
             self.model.compile(optimizer=optimizer, loss=self.focal_loss,
                                metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
@@ -177,11 +201,15 @@ class BaseModel:
           save_freq = 'epoch'
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
                                      limit_pids=self.params['limit_pids'], ddir=self.params['ddir'],
-                                     only_use_pos_images=self.params['only_use_pos_images']
+                                     only_use_pos_images=self.params['only_use_pos_images'],
+                                     data_aug_enable=self.params['data_aug_enable']
                                      ),
                        batch_size=batch_size, epochs=epochs,
                        validation_data=dataGenerator(
-                         self.dev_pids, batch_size, ddir=self.params['ddir'], limit_pids=self.params['limit_pids']),
+                         self.dev_pids, batch_size, ddir=self.params['ddir'], limit_pids=self.params['limit_pids'],
+                            only_use_pos_images=self.params['use_dev_pos_images'],
+                            shuffle=False
+                        ),
                        # Set steps_per_epoch so tensorboard produces eval
                        # metrics more frequently than once per epoch.
                        steps_per_epoch=self.params['steps_per_epoch'], 
@@ -236,3 +264,7 @@ class BaseModel:
     # over write predict method
     def my_predict(self, pids, batch_size):
         return self.model.predict(dataGenerator(pids, batch_size, shuffle=False), batch_size)
+
+    # evaluate call
+    def my_evaluate(self, pids, batch_size, only_use_pos_images = False):
+        return self.model.evaluate(dataGenerator(pids, batch_size, shuffle=False, only_use_pos_images=only_use_pos_images), batch_size=batch_size)

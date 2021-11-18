@@ -18,17 +18,23 @@ import bz2
 import gc
 from my_lib import process_xml
 import argparse
+from dataGenerator import dataGenerator
 
 # import models
 import models.unet as unet
 
-loss_choices = ("bce", "dice", "focal")
+loss_choices = ("bce", "dice", "focal", "dice_n_bce")
 parser = argparse.ArgumentParser()
 parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
-parser.add_argument("-mdir", default="../trained_models", type=str, help="Model's directory")
+parser.add_argument("-mdir", default="../trained_models/unet", type=str, help="Model's directory")
 parser.add_argument("-pid", default=0, type=int, help="pid to plot")
 parser.add_argument("-loss", type=str, choices=loss_choices, default='dice', help=f"Pick loss from {loss_choices}")
+parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
+parser.add_argument("--evaluate", action="store_true", default=False, help="Evaluate the model")
+parser.add_argument("-set", type=str, choices=("train", "dev", "test"), default='dev', help="Specify set (train|dev|test) to evaluate or predict on")
+parser.add_argument("--print_stats", action="store_true", default=False, help="Predict on all patients and print number of predicted calcified pixels")
+parser.add_argument("--only_use_pos_images", action="store_true", default=False, help="Evaluate with positive images only")
 args = parser.parse_args()
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -40,6 +46,9 @@ params = {}
 params['reset_history'] = False ; # Keep this false
 params['models_dir'] = args.mdir
 params['loss'] = args.loss
+params['print_summary'] = False
+params['alpha'] = args.dice_loss_fraction ; # fraction of dice loss
+
 
 # data set directory
 ddir = args.ddir
@@ -75,17 +84,36 @@ model.is_train = False
 # We may not need this?
 optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 model.compile(optimizer)
-
-#Set the data
-model.dev_pids = dev_pids
-model.test_pids = test_pids
-
-# Plot original and prediction
 print (train_pids)
 print (dev_pids)
-Y_hat = model.my_predict([args.pid], batch_size)
-print (Y_hat.shape)
 
+if args.evaluate:
+    if args.set == "train":
+        print ("Evaluating on train set")
+        Y_hat = model.my_evaluate(train_pids, batch_size, only_use_pos_images=args.only_use_pos_images)
+    elif args.set == "dev":
+        print("Evaluating on dev set")
+        Y_hat = model.my_evaluate(dev_pids, batch_size, only_use_pos_images=args.only_use_pos_images)
+    elif args.set == "test":
+        print("Evaluating on test set")
+        Y_hat = model.my_evaluate(test_pids, batch_size, only_use_pos_images=args.only_use_pos_images)
+    else:
+        exit(f"ERROR: Unknown {args.eval_set}")
+    exit()
+
+
+if args.print_stats:
+    stats = []
+    for pid in dev_pids:
+        Y_hat = model.my_predict([pid], batch_size)
+        stats.append((pid, np.sum(Y_hat > 0.5)))
+
+    for _ in stats:
+        print (_)
+    exit()
+
+# Plot original and prediction for given pid
+Y_hat = model.my_predict([args.pid], batch_size)
 plot_3d = True
 
 images = []
@@ -105,19 +133,42 @@ if os.path.exists(fname):
 else:
     mdata = None
 
+# Get True Y
+my_dg = dataGenerator([args.pid], batch_size, shuffle=False)
+Y_true = np.zeros(Y_hat.shape)
+for i in range(len(my_dg)):
+    if ((i + 1) * batch_size) < Y_true.shape[0]:
+        Y_true[i * batch_size : (i+1) * batch_size] = my_dg[i][1]
+    else:
+        Y_true[i * batch_size : ] = my_dg[i][1]
+
 # Create mdata from prediction
 #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
 pmdata = {}
+ymdata = {}
 ## FIXME, extract the predicted cid
 for id in range(Y_hat.shape[0]):
     print (np.sum(Y_hat[id] > 0.5))
-    X, Y = np.where(Y_hat[id][:, :, 0] > 0.5)
+    Y, X = np.where(Y_hat[id][:, :, 0] > 0.5)
     if len(Y) > 0:
         pmdata[id] = []
         ttt = {'cid': 0, 'pixels': []}
         for y, x in zip(Y, X):
             ttt['pixels'].append((x,y))
         pmdata[id].append(ttt)
+
+print (Y_hat.shape)
+print (Y_true.shape)
+for id in range(Y_hat.shape[0]):
+    Y, X = np.where(Y_true[id][:, :, 0] > 0)
+    if len(Y) > 0:
+        ymdata[id] = []
+        ttt = {'cid': 0, 'pixels': []}
+        for y, x in zip(Y, X):
+            ttt['pixels'].append((x,y))
+        ymdata[id].append(ttt)
+
+#pmdata = ymdata
 
 # plot
 pixel_colors = {0: 'red',

@@ -3,8 +3,8 @@ import plistlib
 # get pixel coordinates
 def get_pix_coords(pxy):
     x, y = eval(pxy)
-    x = int(x+0.99)
-    y = int(y+0.99)
+    x = int(x)
+    y = int(y)
     assert x > 0 and x < 512, f"Invalid {x} value for pixel coordinate"
     assert y > 0 and y < 512, f"Invalid {y} value for pixel coordinate"
     return (x, y)

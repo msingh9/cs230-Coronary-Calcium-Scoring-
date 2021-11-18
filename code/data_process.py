@@ -18,10 +18,10 @@ import bz2
 from my_lib import process_xml
 
 # User options
-doPlot = False
+doPlot = True
 plot3D = True
 pid = random.choice([i for i in range(100)]) # specify the patient id
-pid = 100
+pid = 356
 print (pid)
 sdir_id = "G" ;# G for gated, N for non-gated
 generate_gated_train_dev_test_set = True
@@ -83,6 +83,8 @@ if doPlot:
             filepath = subdir + os.sep + filename
             if filepath.endswith(".dcm"):
                 ds = dcmread(filepath)
+                print (ds)
+                exit()
                 images.append(ds.pixel_array)
 
     images = np.array(images)

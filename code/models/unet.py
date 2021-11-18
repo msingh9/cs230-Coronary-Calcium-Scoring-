@@ -13,7 +13,7 @@ class Model(BaseModel):
     def __init__(self, history, params=None):
         self.name = 'unet'
         self.model = Sequential()
-        self.batchnorm = True
+        self.batchnorm = False
         self.dropout = 0.0
 
         inputs = Input(shape=(512, 512, 1))
@@ -22,7 +22,8 @@ class Model(BaseModel):
             """Function to add 2 convolutional layers with the parameters passed to it"""
             # first layer
             x = Conv2D(filters=n_filters, kernel_size=(kernel_size, kernel_size),
-                       kernel_initializer='he_normal', padding='same')(input_tensor)
+                       padding='same')(input_tensor)
+                       #kernel_initializer='he_normal', padding='same')(input_tensor)
             if self.batchnorm:
                 x = BatchNormalization()(x)
             x = Activation('relu')(x)
@@ -31,7 +32,8 @@ class Model(BaseModel):
 
             # second layer
             x = Conv2D(filters=n_filters, kernel_size=(kernel_size, kernel_size),
-                       kernel_initializer='he_normal', padding='same')(x)
+                padding='same')(x)
+                       #kernel_initializer='he_normal', padding='same')(x)
             if self.batchnorm:
                 x = BatchNormalization()(x)
             x = Activation('relu')(x)
@@ -74,29 +76,29 @@ class Model(BaseModel):
         # Decoder path (64x64)
         u4 = Conv2DTranspose(512, (3, 3), strides=(2, 2), padding='same')(p5)
         u4 = concatenate([u4, c4])
-        if self.dropout and False:
+        if self.dropout and True:
             u4 = Dropout(self.dropout)(u4)
         u4 = conv2d_block(u4, 512)
 
         # 128x128
         u3 = Conv2DTranspose(256, (3, 3), strides=(2, 2), padding='same')(u4)
         u3 = concatenate([u3, c3])
-        if self.dropout and False:
+        if self.dropout and True:
             u3 = Dropout(self.dropout)(u3)
         u3 = conv2d_block(u3, 256)
 
         # 256x256
         u2 = Conv2DTranspose(128, (3, 3), strides=(2, 2), padding='same')(u3)
         u2 = concatenate([u2, c2])
-        if self.dropout and False:
+        if self.dropout and True:
             u2 = Dropout(self.dropout)(u2)
         u2 = conv2d_block(u2, 128)
 
         # 512x512
         u1 = Conv2DTranspose(64, (3, 3), strides=(2, 2), padding='same')(u2)
         u1 = concatenate([u1, c1])
-        if self.dropout and False:
-            u1 = Dropout(self.dropout)(u1)
+        if self.dropout and True:
+            u1 = Dropout(0.8)(u1)
         u1 = conv2d_block(u1, 64)
 
         # Final layer

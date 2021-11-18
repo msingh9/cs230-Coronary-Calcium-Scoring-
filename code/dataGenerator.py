@@ -11,7 +11,8 @@ import random
 
 class dataGenerator(tf.keras.utils.Sequence):
     def __init__(self, pids, batch_size, ddir="../dataset",
-                 upsample_ps=0, limit_pids=None, shuffle=True, only_use_pos_images=False):
+                 upsample_ps=0, limit_pids=None, shuffle=True,
+                 only_use_pos_images=False, data_aug_enable=False):
         if limit_pids:
             self.pids = pids[0:limit_pids]
         else:
@@ -28,6 +29,7 @@ class dataGenerator(tf.keras.utils.Sequence):
         self.cache = {}
         self.shuffle = shuffle
         self.only_use_pos_images = only_use_pos_images
+        self.data_aug_enable = data_aug_enable
 
         # Estimate total work
         total_work = 0
@@ -148,7 +150,7 @@ class dataGenerator(tf.keras.utils.Sequence):
                 continue
             for _ in mdata[iidx]:
                 poly_path = Path(_['pixels'])
-                x, y = np.mgrid[:height, : width]
+                y, x = np.mgrid[:height, : width]
                 coors = np.hstack((x.reshape(-1,1), y.reshape(-1,1)))
                 mask = poly_path.contains_points(coors).reshape(height, width)
                 Ys[index, :, :, 0] += mask
