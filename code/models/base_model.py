@@ -54,6 +54,7 @@ class BaseModel:
             self.model = load_model(self.name + '.h5',
                                         custom_objects={'dice_loss' : self.dice_loss,
                                                         'focal_loss' : self.focal_loss,
+                                                        'dice_n_bce_loss': self.dice_n_bce_loss,
                                                         'seg_f1': self.seg_f1,
                                                         'class_acc': self.class_acc})
             if self.history:
@@ -98,6 +99,24 @@ class BaseModel:
         dice = (2 * intersection + smooth) / (K.sum(targets_s) + K.sum(inputs_s) + smooth)
         dice_loss = 1 - dice
         return dice_loss
+
+    def dice_n_bce_loss(self, targets, inputs, smooth=1e-6):
+        # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
+        # flatten label and prediction tensors
+
+        m = tf.cast(tf.shape(targets)[0], tf.float32)
+        inputs_s = K.flatten(inputs)
+        targets_s = K.flatten(targets)
+
+        intersection = K.sum(targets_s * inputs_s)
+        dice = (2 * intersection + smooth) / (K.sum(targets_s) + K.sum(inputs_s) + smooth)
+        dice_loss = 1 - dice
+
+        # binary cross entropy loss for segmentation
+        bce = tf.keras.losses.BinaryCrossentropy()
+        binary_entropy_loss = bce(targets, inputs, sample_weight=[0.9, 0.1])
+
+        return (self.params['alpha'] * dice_loss + (1 - self.params['alpha']) * binary_entropy_loss)
 
     def focal_loss(self, targets, inputs, alpha=0.8, gamma=0.2):
         # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
@@ -162,6 +181,9 @@ class BaseModel:
                                metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'dice':
             self.model.compile(optimizer=optimizer, loss=self.dice_loss,
+                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+        elif self.params['loss'] == 'dice_n_bce':
+            self.model.compile(optimizer=optimizer, loss=self.dice_n_bce_loss,
                                metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'focal':
             self.model.compile(optimizer=optimizer, loss=self.focal_loss,

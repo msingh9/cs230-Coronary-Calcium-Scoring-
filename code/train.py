@@ -23,7 +23,7 @@ import gc
 # import models
 import models.unet as unet
 
-loss_choices = ("bce", "dice", "focal")
+loss_choices = ("bce", "dice", "focal", "dice_n_bce")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
@@ -136,7 +136,7 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.val_class_acc.append(logs.get('val_acc'))
 
         gc.collect()
-        if epoch%5 == 0:
+        if epoch%1 == 0:
             # Save model
             print ("Saving the model in ../experiments/current/m_" + str(epoch))
             model.save('../experiments/current/m_' + str(epoch))
