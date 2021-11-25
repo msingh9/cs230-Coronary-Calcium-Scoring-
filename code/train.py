@@ -24,7 +24,6 @@ import gc
 import models.unet as unet
 import models.unet1 as unet1
 
-
 loss_choices = ("bce", "dice", "focal", "dice_n_bce")
 
 parser = argparse.ArgumentParser()
