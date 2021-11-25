@@ -101,6 +101,7 @@ class BaseModel:
         # Modified based on https://aclanthology.org/2020.acl-main.45.pdf
         dice = (2 * intersection + smooth) / (K.sum(targets_s ** 2) + K.sum(inputs_s ** 2) + smooth)
         dice_loss = 1 - dice
+
         return dice_loss
 
     def dice_n_bce_loss(self, targets, inputs, smooth=1e-6):
