@@ -148,7 +148,7 @@ pmdata = {}
 ymdata = {}
 ## FIXME, extract the predicted cid
 for id in range(Y_hat.shape[0]):
-    print (np.sum(Y_hat[id] > 0.5))
+    print (np.sum(Y_hat[id][:, :, 0] > 0.5))
     Y, X = np.where(Y_hat[id][:, :, 0] > 0.5)
     if len(Y) > 0:
         pmdata[id] = []
@@ -159,6 +159,8 @@ for id in range(Y_hat.shape[0]):
 
 print (Y_hat.shape)
 print (Y_true.shape)
+#print (model.model.get_weights())
+
 for id in range(Y_hat.shape[0]):
     Y, X = np.where(Y_true[id][:, :, 0] > 0)
     if len(Y) > 0:

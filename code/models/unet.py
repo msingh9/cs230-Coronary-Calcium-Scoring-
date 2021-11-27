@@ -103,9 +103,9 @@ class Model(BaseModel):
 
         # Final layer
         output0 = Conv2D(1, kernel_size=(1, 1), activation="sigmoid")(u1)
-        #output1 = Conv2D(4, kernel_size=(1, 1), activation="softmax")(u1)
-        #outputs = concatenate([output0, output1])
-        outputs = output0
+        output1 = Conv2D(4, kernel_size=(1, 1), activation="softmax")(u1)
+        outputs = concatenate([output0, output1])
+        #outputs = output0
 
         # Model
         self.model = m(inputs=[inputs], outputs=outputs)

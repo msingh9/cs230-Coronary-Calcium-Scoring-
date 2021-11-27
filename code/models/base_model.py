@@ -93,8 +93,8 @@ class BaseModel:
         # flatten label and prediction tensors
 
         m = tf.cast(tf.shape(targets)[0], tf.float32)
-        inputs_s = K.flatten(inputs)
-        targets_s = K.flatten(targets)
+        inputs_s = K.flatten(inputs[:, :, :, 0])
+        targets_s = K.flatten(targets[:, :, :, 0])
 
         #inputs_s = inputs_s * (1. - inputs_s)
         intersection = K.sum(targets_s * inputs_s)
@@ -102,7 +102,21 @@ class BaseModel:
         dice = (2 * intersection + smooth) / (K.sum(targets_s ** 2) + K.sum(inputs_s ** 2) + smooth)
         dice_loss = 1 - dice
 
-        return dice_loss
+        cce = tf.keras.losses.CategoricalCrossentropy()
+        # Include CE loss when target is 1.
+        if True:
+            y_true = targets[:, :, :, 1:]
+            y_pred = inputs[:, :, :, 1:]
+            mask = targets[:, :, :, 0]
+            y_true_masked = tf.boolean_mask(y_true, mask)
+            y_pred_masked = tf.boolean_mask(y_pred, mask)
+            cross_entropy_loss = cce(y_true_masked, y_pred_masked)
+        else:
+            cross_entropy_loss = 0
+
+        return (self.params['alpha'] * (dice_loss ) +
+                (1 - self.params['alpha']) * cross_entropy_loss)
+
 
     def dice_n_bce_loss(self, targets, inputs, smooth=1e-6):
         # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
@@ -181,16 +195,16 @@ class BaseModel:
     def compile(self, optimizer):
         if self.params['loss'] == 'bce':
             self.model.compile(optimizer=optimizer, loss=['binary_crossentropy'],
-                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+                               metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'dice':
             self.model.compile(optimizer=optimizer, loss=self.dice_loss,
-                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+                               metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'dice_n_bce':
             self.model.compile(optimizer=optimizer, loss=self.dice_n_bce_loss,
-                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+                               metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'focal':
             self.model.compile(optimizer=optimizer, loss=self.focal_loss,
-                               metrics=[self.seg_f1, 'accuracy', tf.keras.metrics.MeanIoU(num_classes=2)])
+                               metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
         else:
             exit("Loss not defined")
 
@@ -203,7 +217,8 @@ class BaseModel:
         self.model.fit(dataGenerator(self.train_pids, batch_size, upsample_ps=self.params['upsample_ps'],
                                      limit_pids=self.params['limit_pids'], ddir=self.params['ddir'],
                                      only_use_pos_images=self.params['only_use_pos_images'],
-                                     data_aug_enable=self.params['data_aug_enable']
+                                     data_aug_enable=self.params['data_aug_enable'],
+                                     num_neg_images_per_batch=self.params['num_neg_images_per_batch']
                                      ),
                        batch_size=batch_size, epochs=epochs,
                        validation_data=dataGenerator(

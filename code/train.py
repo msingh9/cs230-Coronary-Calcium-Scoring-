@@ -49,6 +49,7 @@ parser.add_argument("--reset", default=False, action="store_true", help="To rese
 parser.add_argument("--only_use_pos_images", action="store_true", default=False, help="Train with positive images only")
 parser.add_argument("--use_dev_pos_images", action="store_true", default=False, help="Evaluate only on positive samples on dev set")
 parser.add_argument("--den", action="store_true", default=False, help="Enable data augmentation")
+parser.add_argument("-num_neg_images_per_batch", default=0, type=int, help="Number of positive images to be replaced with neg images per batch. Use with --only_use_pos_images")
 args = parser.parse_args()
 
 TIME_FORMAT = "%Y-%m-%d-%H-%M"
@@ -67,18 +68,13 @@ if args.lr:
     learning_rates = args.lr
 else:
     learning_rates = [0.0001]
-decay_rate = 0.1
+decay_rate = 1.0
 decay_epochs = 10
 momentum = 0.9
 batch_sizes = args.batch_size
 epochs = args.epochs
 plot = args.plot
 train = args.train
-
-# Hyper parameter search
-if args.hsen:
-    learning_rates = [10**random.uniform(-2,-5)]
-    print (learning_rates)
 
 # Model parameters
 params = {}
@@ -96,6 +92,14 @@ params['model_save_freq_steps'] = args.model_save_freq_steps
 params['loss'] = args.loss
 params['only_use_pos_images'] = args.only_use_pos_images
 params['use_dev_pos_images'] = args.use_dev_pos_images
+params['num_neg_images_per_batch'] = args.num_neg_images_per_batch
+
+# Hyper parameter search
+if args.hsen:
+    #learning_rates = [10**random.uniform(-2,-5)]
+    #print (learning_rates)
+    params['alpha'] = random.uniform(0.8, 1.0)
+    print (f"Using alpha as {params['alpha']}")
 
 if args.patient_splits_dir is None:
   patient_splits_dir = args.ddir
@@ -137,8 +141,8 @@ class LossHistory(tf.keras.callbacks.Callback):
         self.val_losses.append(logs.get('val_loss'))
         self.train_seg_f1.append(logs.get('seg_f1'))
         self.val_seg_f1.append(logs.get('val_seg_f1'))
-        self.train_class_acc.append(logs.get('acc'))
-        self.val_class_acc.append(logs.get('val_acc'))
+        self.train_class_acc.append(logs.get('class_acc'))
+        self.val_class_acc.append(logs.get('val_class_acc'))
 
         gc.collect()
         if args.model_save_freq_steps and epoch % args.model_save_freq_steps == 0:

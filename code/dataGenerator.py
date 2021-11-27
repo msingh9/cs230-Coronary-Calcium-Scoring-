@@ -12,7 +12,9 @@ import random
 class dataGenerator(tf.keras.utils.Sequence):
     def __init__(self, pids, batch_size, ddir="../dataset",
                  upsample_ps=0, limit_pids=None, shuffle=True,
-                 only_use_pos_images=False, data_aug_enable=False):
+                 only_use_pos_images=False, data_aug_enable=False,
+                 num_neg_images_per_batch=0
+                 ):
         if limit_pids:
             self.pids = pids[0:limit_pids]
         else:
@@ -30,6 +32,13 @@ class dataGenerator(tf.keras.utils.Sequence):
         self.shuffle = shuffle
         self.only_use_pos_images = only_use_pos_images
         self.data_aug_enable = data_aug_enable
+        # Use num_neg_images_per_batch variable to define number of negative images to use per batch.
+        # It has to be used along with only_use_pos_images. In every batch, these many positive images
+        # will be replaced by randomly selected negative images.
+        self.num_neg_images_per_batch = num_neg_images_per_batch
+        # These two neg_X/mdata variables contain negative images
+        self.neg_X = []
+        self.neg_mdata = []
 
         # Estimate total work
         total_work = 0
@@ -70,6 +79,8 @@ class dataGenerator(tf.keras.utils.Sequence):
                 # mdata format is:
                 #  {<image_index>: [{cid: <integer>, pixels: [(x1,y1), (x2,y2)..]},..]
                 if iidx not in mdata:
+                    self.neg_X.append(self.X[index])
+                    self.neg_mdata.append((pid, iidx))
                     continue
                 new_X.append(self.X[index])
                 new_mdata.append((pid, iidx))
@@ -130,9 +141,21 @@ class dataGenerator(tf.keras.utils.Sequence):
             Xs = self.X[idx * self.batch_size:(idx + 1) * self.batch_size]
             mdatas = self.mdata[idx * self.batch_size:(idx + 1) * self.batch_size]
 
+        # Replace positive images with n negative images if num_neg_images_per_batch != 0
+        if self.only_use_pos_images:
+            assert(self.num_neg_images_per_batch <= self.batch_size), f"num_neg_images_per_batch ({self.num_neg_images_per_batch}) should be less than batch size ({self.batch_size})"
+            neg_indices = random.choices(range(len(self.neg_X)), k = self.num_neg_images_per_batch)
+            pos_indices = random.choices(range(len(Xs)), k = self.num_neg_images_per_batch)
+            for p, n in zip(pos_indices, neg_indices):
+                Xs[p] = self.neg_X[n]
+                mdatas[p] = self.neg_mdata[n]
+        else:
+            assert(self.num_neg_images_per_batch == 0), f"num_nag_images_per_batch ({self.num_neg_images_per_batch}) should only be used when self.only_use_pos_images is 1"
+
+
         height, width = Xs[0].shape
         m = len(Xs)
-        Ys = np.zeros((m, height, width, 1))
+        Ys = np.zeros((m, height, width, 5))
 
         # load XML and prepare Ys
         for index, (pid, iidx) in enumerate(mdatas):
@@ -154,9 +177,9 @@ class dataGenerator(tf.keras.utils.Sequence):
                 coors = np.hstack((x.reshape(-1,1), y.reshape(-1,1)))
                 mask = poly_path.contains_points(coors).reshape(height, width)
                 Ys[index, :, :, 0] += mask
-                #Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
+                Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
 
-        #Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
+        Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
         return np.array(Xs).reshape(m, height, width, 1), Ys
 
     def on_epoch_end(self):
