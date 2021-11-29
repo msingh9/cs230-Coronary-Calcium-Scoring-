@@ -92,7 +92,14 @@ class dataGenerator(tf.keras.utils.Sequence):
         print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
         norm_const = np.array(2 ** 16 - 1).astype('float32')
         print("Normalizing inputs, it takes a little while")
-        self.X = self.X / norm_const
+        count = 0
+        while (count < len(self.X)):
+            # Do only 10000 images at once, to avoid running out of memory
+            if ((count + 10000) > len(self.X)):
+                self.X[count : ] = self.X[count : ] / norm_const
+            else:
+                self.X[count : count + 10000] = self.X[count : count + 10000] / norm_const
+            count += 10000
         print(f"Image pixel data type after normalization {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
 
         # Up sample image

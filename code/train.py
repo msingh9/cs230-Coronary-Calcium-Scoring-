@@ -150,7 +150,7 @@ class LossHistory(tf.keras.callbacks.Callback):
             print ("Saving the model in ../experiments/current/m_" + str(epoch))
             model.save('../experiments/current/m_' + str(epoch))
             print ("Full evaluation on dev set")
-            model.my_evaluate(dev_pids, batch_size, only_use_pos_images=args.use_dev_pos_images)
+            model.my_evaluate(dev_pids, batch_size, only_use_pos_images=False)
 
 # learning rate scheduler
 def lr_scheduler(epoch, lr):
@@ -193,7 +193,7 @@ for batch_size in batch_sizes:
         if train:
             model.train(batch_size, epochs, lr_scheduler)
             model.save()
-            y_hat = model.my_evaluate(train_pids, batch_size, only_use_pos_images=args.only_use_pos_images)
+            #y_hat = model.my_evaluate(train_pids, batch_size, only_use_pos_images=args.only_use_pos_images)
 
         if plot:
             fig, ax = plt.subplots(nrows=1, ncols=3)
