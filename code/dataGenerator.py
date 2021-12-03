@@ -39,6 +39,8 @@ class dataGenerator(tf.keras.utils.Sequence):
         # These two neg_X/mdata variables contain negative images
         self.neg_X = []
         self.neg_mdata = []
+        self.fixed_normalization = True
+        self.just_segmentation = False
 
         # Estimate total work
         total_work = 0
@@ -88,19 +90,20 @@ class dataGenerator(tf.keras.utils.Sequence):
             self.mdata = new_mdata
 
         # Normalize Xs
-        print(f'Read {len(self.X)} examples before upsampling.')
-        print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
-        norm_const = np.array(2 ** 16 - 1).astype('float32')
-        print("Normalizing inputs, it takes a little while")
-        count = 0
-        while (count < len(self.X)):
-            # Do only 10000 images at once, to avoid running out of memory
-            if ((count + 10000) > len(self.X)):
-                self.X[count : ] = self.X[count : ] / norm_const
-            else:
-                self.X[count : count + 10000] = self.X[count : count + 10000] / norm_const
-            count += 10000
-        print(f"Image pixel data type after normalization {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
+        if 0:
+            print(f'Read {len(self.X)} examples before upsampling.')
+            print(f"Image pixel data type before normalization is {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
+            norm_const = np.array(2 ** 16 - 1).astype('float32')
+            print("Normalizing inputs, it takes a little while")
+            count = 0
+            while (count < len(self.X)):
+                # Do only 10000 images at once, to avoid running out of memory
+                if ((count + 10000) > len(self.X)):
+                    self.X[count : ] = self.X[count : ] / norm_const
+                else:
+                    self.X[count : count + 10000] = self.X[count : count + 10000] / norm_const
+                count += 10000
+            print(f"Image pixel data type after normalization {self.X[0][0, 0].dtype} {self.X[0][0, 0]}")
 
         # Up sample image
         if self.upsample_ps:
@@ -159,10 +162,24 @@ class dataGenerator(tf.keras.utils.Sequence):
         else:
             assert(self.num_neg_images_per_batch == 0), f"num_nag_images_per_batch ({self.num_neg_images_per_batch}) should only be used when self.only_use_pos_images is 1"
 
+        # Normalize here
+        norm_const = np.array(2 ** 16 - 1).astype('float32')
+        Xs = np.array(Xs)
+        if self.fixed_normalization:
+            Xs = Xs / norm_const
+        else:
+            min_value = np.min(Xs)
+            max_value = np.max(Xs)
+            range = max_value - min_value
+            Xs = (Xs - min_value)/range
 
         height, width = Xs[0].shape
         m = len(Xs)
-        Ys = np.zeros((m, height, width, 5))
+
+        if not self.just_segmentation:
+            Ys = np.zeros((m, height, width, 5))
+        else:
+            Ys = np.zeros((m, height, width, 1))
 
         # load XML and prepare Ys
         for index, (pid, iidx) in enumerate(mdatas):
@@ -184,9 +201,11 @@ class dataGenerator(tf.keras.utils.Sequence):
                 coors = np.hstack((x.reshape(-1,1), y.reshape(-1,1)))
                 mask = poly_path.contains_points(coors).reshape(height, width)
                 Ys[index, :, :, 0] += mask
-                Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
+                if not self.just_segmentation:
+                    Ys[index, :, :, 1] = (Ys[index, :, :, 1] * ~mask) + (np.full((height, width), _['cid']) * mask)
 
-        Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
+        if not self.just_segmentation:
+            Ys[:,:,:,1:5] = to_categorical(Ys[:, :, :, 1], num_classes=4)
         return np.array(Xs).reshape(m, height, width, 1), Ys
 
     def on_epoch_end(self):

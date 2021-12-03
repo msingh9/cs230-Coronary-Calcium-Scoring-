@@ -23,6 +23,7 @@ import gc
 # import models
 import models.unet as unet
 import models.unet1 as unet1
+import models.uneta as uneta
 
 loss_choices = ("bce", "dice", "focal", "dice_n_bce")
 
@@ -53,6 +54,18 @@ parser.add_argument("-num_neg_images_per_batch", default=0, type=int, help="Numb
 args = parser.parse_args()
 
 TIME_FORMAT = "%Y-%m-%d-%H-%M"
+
+## My overwrite
+if 0:
+    args.batch_size = [8]
+    args.loss = 'focal'
+    args.train = True
+    args.lr = [0.0001]
+    args.model_save_freq_steps = 1
+    args.reset = False
+    args.epochs = 10
+    args.upsample_ps = 8
+    args.mname = 'uneta'
 
 def get_time():
   return datetime.datetime.now(pytz.timezone('US/Pacific'))
@@ -149,8 +162,8 @@ class LossHistory(tf.keras.callbacks.Callback):
             # Save model
             print ("Saving the model in ../experiments/current/m_" + str(epoch))
             model.save('../experiments/current/m_' + str(epoch))
-            print ("Full evaluation on dev set")
-            model.my_evaluate(dev_pids, batch_size, only_use_pos_images=False)
+            #print ("Full evaluation on dev set")
+            #model.my_evaluate(dev_pids, batch_size, only_use_pos_images=False)
 
 # learning rate scheduler
 def lr_scheduler(epoch, lr):
@@ -169,6 +182,8 @@ for batch_size in batch_sizes:
             model = unet.Model(history, params)
         elif model_name == 'unet1':
             model = unet1.Model(history, params)
+        elif model_name == 'uneta':
+            model = uneta.Model(history, params)
         else:
             model = None
             exit("Something went wrong, model not defined")

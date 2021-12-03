@@ -22,12 +22,15 @@ from dataGenerator import dataGenerator
 
 # import models
 import models.unet as unet
+import models.unet1 as unet1
+import models.uneta as uneta
 
 loss_choices = ("bce", "dice", "focal", "dice_n_bce")
 parser = argparse.ArgumentParser()
 parser.add_argument("-batch_size", type=int, action='append', help="List of batch sizes")
 parser.add_argument("-ddir", default="../dataset", type=str, help="Data set directory. Don't change sub-directories of the dataset")
 parser.add_argument("-mdir", default="../trained_models/unet", type=str, help="Model's directory")
+parser.add_argument("-mname", default="unet", type=str, help="Model's name")
 parser.add_argument("-pid", default=0, type=int, help="pid to plot")
 parser.add_argument("-loss", type=str, choices=loss_choices, default='dice', help=f"Pick loss from {loss_choices}")
 parser.add_argument("-dice_loss_fraction", default=1.0, type=float, help="Total loss is sum of dice loss and cross entropy loss. This controls fraction of dice loss to consider. Set it to 1.0 to ignore class loss")
@@ -40,7 +43,7 @@ parser.add_argument("--print_agatston_score", action="store_true", default=False
 args = parser.parse_args()
 # User options
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-model_name = 'unet'
+model_name = args.mname
 batch_size = 8
 
 # Model parameters
@@ -78,6 +81,10 @@ else:
 # Load Model
 if model_name == 'unet':
     model = unet.Model(None, params)
+elif model_name == 'unet1':
+    model = unet1.Model(None, params)
+elif model_name == 'uneta':
+    model = uneta.Model(None, params)
 else:
     model = None
     exit("Something went wrong, model not defined")
@@ -178,6 +185,7 @@ for pid in pids:
         pred = Y_hat[id][:, :, 0] > 0.5
         ag_score_hat += compute_agatston_for_slice(X_all[id], pred.reshape(height, width, 1))
         Y, X = np.where(pred)
+        print (np.sum(pred))
         if len(Y) > 0:
             pmdata[id] = []
             ttt = {'cid': 0, 'pixels': []}

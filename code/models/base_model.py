@@ -10,6 +10,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import plot_model
 import shutil
 from dataGenerator import dataGenerator
+import tensorflow_addons as tfa
 
 
 #random.seed(1223143)
@@ -64,6 +65,11 @@ class BaseModel:
                     self.history.train_class_acc, self.history.val_class_acc = pickle.load(fin)
                 print (self.history.train_losses)
 
+        if os.path.isdir(self.name + '.hf5'):
+            self.model = load_model(self.name + '.hf5',
+                                    custom_objects={'dice_loss' : self.dice_loss,
+                                                    'focal_loss' : self.focal_loss,
+                                                    'dice_coef': self.dice_coef})
         # Check if model is defined
         if not self.model:
             exit("model not defined")
@@ -86,6 +92,21 @@ class BaseModel:
         if not name:
             pass
             #plot_model(self.model, to_file=self.name + '.png')
+
+    # dice coeff
+    def dice_coef(self, targets, inputs, smooth=1e-6):
+        # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
+        # flatten label and prediction tensors
+
+        m = tf.cast(tf.shape(targets)[0], tf.float32)
+        inputs_s = K.flatten(inputs[:, :, :, 0])
+        targets_s = K.flatten(targets[:, :, :, 0])
+
+        #inputs_s = inputs_s * (1. - inputs_s)
+        intersection = K.sum(targets_s * inputs_s)
+        # Modified based on https://aclanthology.org/2020.acl-main.45.pdf
+        dice = (2 * intersection + smooth) / (K.sum(targets_s ** 2) + K.sum(inputs_s ** 2) + smooth)
+        return dice
 
     # Loss function
     def dice_loss(self, targets, inputs, smooth=1e-6):
@@ -135,16 +156,33 @@ class BaseModel:
 
         return (self.params['alpha'] * dice_loss + (1 - self.params['alpha']) * binary_entropy_loss)
 
-    def focal_loss(self, targets, inputs, alpha=0.8, gamma=0.2):
+    def focal_loss_old(self, targets, inputs, alpha=0.55, gamma=0.2):
         # reference: https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
-        inputs = K.flatten(inputs)
-        targets = K.flatten(targets)
+        inputs_s = K.flatten(inputs[:, :, :, 0])
+        targets_s = K.flatten(targets[:, :, :, 0])
 
-        BCE = K.binary_crossentropy(targets, inputs)
+        BCE = K.binary_crossentropy(targets_s, inputs_s)
         BCE_EXP = K.exp(-BCE)
         focal_loss = K.mean(alpha * K.pow((1 - BCE_EXP), gamma) * BCE)
 
         return focal_loss
+
+    def focal_loss(self, y_true, y_pred):
+        alpha = 0.55
+        gamma = 2.
+        y_true_f = K.flatten(y_true[:, :, :, 0])
+        y_pred_f = K.flatten(y_pred[:, :, :, 0])
+        # y_true = K.expand_dims(y_true, axis=3)
+        # y_pred = K.expand_dims(y_pred, axis=3)
+        # print(f'new shape is {y_true.shape}')
+        focal = tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.NONE,
+                                                    gamma=gamma,
+                                                    alpha=alpha)(y_true_f, y_pred_f)
+        l = K.sum(focal) / (512*512)  # K.flatten(y_true).shape[0]
+        # print('going to print l')
+        # with tf.Session() as sess:
+        #   print(l.eval())
+        return l
 
 #
 #         # binary cross entropy loss for segmentation
@@ -204,7 +242,7 @@ class BaseModel:
                                metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
         elif self.params['loss'] == 'focal':
             self.model.compile(optimizer=optimizer, loss=self.focal_loss,
-                               metrics=[self.seg_f1, self.class_acc, tf.keras.metrics.MeanIoU(num_classes=2)])
+                               metrics=[self.seg_f1, self.dice_coef, tf.keras.metrics.MeanIoU(num_classes=2)])
         else:
             exit("Loss not defined")
 
